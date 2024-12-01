@@ -1,0 +1,29 @@
+# Re-creates the overload situation shown in the Netflix Performance Under Load article
+# https://netflixtechblog.medium.com/performance-under-load-3e6fa9a60581
+
+client:
+  stages:
+    - rps: 100
+      duration: 10s
+    - rps: 200
+      duration: 30s
+    - rps: 100
+      duration: 10s
+
+server:
+  stages:
+    - service_times:
+        - service_time: 40ms
+          weight: 70
+        - service_time: 80ms
+          weight: 20
+        - service_time: 200ms
+          weight: 7
+        - service_time: 500ms
+          weight: 3
+  threads: 8
+
+strategies:
+  - name: client timeout
+    client_policies:
+      - timeout: 1s

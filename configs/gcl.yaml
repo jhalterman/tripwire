@@ -1,0 +1,53 @@
+# Demonstrates and compares limiters from the go-concurrency-limits library
+# https://github.com/platinummonkey/go-concurrency-limits
+
+client:
+  stages:
+    - rps: 100
+
+server:
+  threads: 12
+  stages:
+    - service_times:
+        - service_time: 50ms
+      duration: 20s
+    - service_times:
+        - service_time: 150ms
+      duration: 40s
+    - service_times:
+        - service_time: 50ms
+      duration: 20s
+
+strategies:
+  - name: vegaslimiter
+    client_policies:
+      - vegaslimiter:
+          short_window_min_duration: 1s
+          short_window_max_duration: 1s
+          short_window_min_samples: 10
+          max_limit: 150
+          initial_limit: 20
+          smoothing_factor: .1
+
+  - name: gradientlimiter
+    client_policies:
+      - gradientlimiter:
+          short_window_min_duration: 1s
+          short_window_max_duration: 1s
+          short_window_min_samples: 10
+          min_limit: 2
+          max_limit: 150
+          initial_limit: 20
+          smoothing_factor: .1
+
+  - name: gradient2limiter
+    client_policies:
+      - gradient2limiter:
+          short_window_min_duration: 1s
+          short_window_max_duration: 1s
+          short_window_min_samples: 10
+          long_window_size: 60
+          min_limit: 2
+          max_limit: 150
+          initial_limit: 20
+          smoothing_factor: .1

@@ -1,0 +1,27 @@
+# Static test (must be adjusted via the REST API) of the adaptive limiter.
+
+client:
+  static:
+    rps: 100
+
+server:
+  threads: 12
+  static:
+    - service_time: 50ms
+
+strategies:
+  - name: adaptivelimiter
+    client_policies:
+      - adaptivelimiter:
+          short_window_min_duration: 1s
+          short_window_max_duration: 1s
+          short_window_min_samples: 1
+          long_window_size: 60
+          min_limit: 2
+          max_limit: 150
+          initial_limit: 20
+          max_limit_factor: 5
+          max_execution_time: 2s
+          correlation_window_size: 20
+          variation_window_size: 8
+          smoothing_factor: .1

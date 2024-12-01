@@ -1,0 +1,56 @@
+client:
+  static:
+    rps: 100
+
+server:
+  threads: 12
+  stages:
+    - service_times:
+        - service_time: 50ms
+      duration: 20s
+    - service_times:
+        - service_time: 150ms
+      duration: 40s
+    - service_times:
+        - service_time: 50ms
+      duration: 20s
+
+strategies:
+  - name: client bulkhead
+    client_policies:
+      - bulkhead:
+          max_concurrency: 20
+
+  - name: client rate limiter
+    client_policies:
+      - ratelimiter:
+          rps: 150
+
+  - name: client timeout
+    client_policies:
+      - timeout: 300ms
+
+  - name: client circuitbreaker and timeout
+    client_policies:
+      - circuitbreaker:
+          failure_rate_threshold: 10
+          failure_execution_threshold: 100
+          failure_thresholding_period: 10s
+          delay: 5s
+      - timeout: 5s
+
+  - name: adaptivelimiter
+    client_policies:
+      - adaptivelimiter:
+          short_window_min_duration: 1s
+          short_window_max_duration: 1s
+          short_window_min_samples: 1
+          long_window_size: 60
+          min_limit: 2
+          max_limit: 150
+          initial_limit: 20
+          max_limit_factor: 5
+          max_execution_time: 2s
+          correlation_window_size: 20
+          variation_window_size: 8
+          smoothing_factor: .1
