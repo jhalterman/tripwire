@@ -41,8 +41,9 @@ func (s *Stage) String() string {
 }
 
 type Client struct {
+	serverAddr string
 	config     *Config
-	metrics    *metrics.Metrics
+	metrics    *metrics.StrategyMetrics
 	logger     *zap.SugaredLogger
 	httpClient *http.Client
 	adaptive   bool
@@ -52,8 +53,9 @@ type Client struct {
 	stageResponseTimes *hdrhistogram.Histogram // Guarded by mtx. Tracks response times for an individual stage.
 }
 
-func NewClient(config *Config, metrics *metrics.Metrics, executor failsafe.Executor[*http.Response], logger *zap.SugaredLogger) *Client {
+func NewClient(serverAddr net.Addr, config *Config, metrics *metrics.StrategyMetrics, executor failsafe.Executor[*http.Response], logger *zap.SugaredLogger) *Client {
 	return &Client{
+		serverAddr: fmt.Sprintf("http://localhost:%d", serverAddr.(*net.TCPAddr).Port),
 		config:     config,
 		metrics:    metrics,
 		logger:     logger.With("runID", metrics.RunID),
@@ -114,14 +116,14 @@ func (c *Client) performStage(ctx context.Context, stage *Stage) {
 
 func (c *Client) sendRequest() {
 	start := time.Now()
-	req, err := http.NewRequest("GET", "http://127.0.0.1:9000", nil)
+	req, err := http.NewRequest("GET", c.serverAddr, nil)
 	if err != nil {
 		c.logger.Errorw("error creating request", "error", err)
 		return
 	}
 	req.Close = true
 
-	c.metrics.ClientReqTotal.With(c.metrics.RunLabels).Inc()
+	c.metrics.ClientReqTotal.Inc()
 	resp, err := c.httpClient.Do(req)
 
 	// Handle errors
@@ -129,7 +131,7 @@ func (c *Client) sendRequest() {
 		// Handle rejections
 		if errors.Is(err, ratelimiter.ErrExceeded) || errors.Is(err, adaptivelimiter.ErrExceeded) || errors.Is(err, bulkhead.ErrFull) || errors.Is(err, circuitbreaker.ErrOpen) {
 			// Do not record response time for rejected requests
-			c.metrics.ClientReqRejected.With(c.metrics.RunLabels).Inc()
+			c.metrics.ClientReqRejected.Inc()
 		}
 		// Handle timeouts
 		var netErr net.Error
@@ -148,11 +150,11 @@ func (c *Client) sendRequest() {
 		switch resp.StatusCode {
 		case http.StatusOK:
 			c.recordResponseTime(start)
-			c.metrics.ClientReqSuccesses.With(c.metrics.RunLabels).Inc()
+			c.metrics.ClientReqSuccesses.Inc()
 			return
 		case http.StatusTooManyRequests:
 			// Do not record response time for rejected requests
-			c.metrics.ClientReqRejected.With(c.metrics.RunLabels).Inc()
+			c.metrics.ClientReqRejected.Inc()
 		case http.StatusInternalServerError:
 			// Do not record response time for internal server errors
 		case http.StatusRequestTimeout, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
@@ -180,7 +182,7 @@ func (c *Client) UpdateStaticConfig(staticConfig *Static) {
 
 func (c *Client) recordResponseTime(start time.Time) {
 	responseTime := time.Since(start)
-	c.metrics.ClientReqResponseTimes.With(c.metrics.RunLabels).Observe(responseTime.Seconds())
+	c.metrics.ClientReqResponseTimes.Observe(responseTime.Seconds())
 	c.stageResponseTimes.RecordValue(responseTime.Milliseconds())
 	mean := float64(c.stageResponseTimes.Mean()) / 1000
 	c.metrics.ClientAvgStageResponseTime.Set(mean)
