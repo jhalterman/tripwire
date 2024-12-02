@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -93,8 +94,9 @@ func (s *Stage) serviceTime(weight int) (time.Duration, error) {
 }
 
 type Server struct {
+	listener net.Listener
 	config   *Config
-	metrics  *metrics.Metrics
+	metrics  *metrics.StrategyMetrics
 	logger   *zap.SugaredLogger
 	executor failsafe.Executor[*http.Response]
 
@@ -103,14 +105,19 @@ type Server struct {
 	availableThreads chan struct{}
 }
 
-func NewServer(config *Config, metrics *metrics.Metrics, executor failsafe.Executor[*http.Response], logger *zap.SugaredLogger) *Server {
+func NewServer(config *Config, metrics *metrics.StrategyMetrics, executor failsafe.Executor[*http.Response], logger *zap.SugaredLogger) (*Server, net.Addr) {
+	listener, err := net.Listen("tcp", ":0")
+	if err != nil {
+		logger.Fatalw("failed to listen", "err", err)
+	}
 	return &Server{
+		listener:         listener,
 		config:           config,
 		metrics:          metrics,
 		logger:           logger.With("runID", metrics.RunID),
 		executor:         executor,
 		availableThreads: make(chan struct{}, config.Threads),
-	}
+	}, listener.Addr()
 }
 
 func (s *Server) Start(wg *sync.WaitGroup) {
@@ -124,12 +131,11 @@ func (s *Server) Start(wg *sync.WaitGroup) {
 
 	// Listen for requests
 	server := &http.Server{
-		Addr:        fmt.Sprintf(":%v", 9000),
 		Handler:     failsafehttp.NewHandlerWithExecutor(http.HandlerFunc(s.handleRequest), s.executor),
 		ReadTimeout: 10 * time.Second,
 	}
 	go func() {
-		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := server.Serve(s.listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.logger.Fatalw("server error", "error", err)
 		}
 	}()
@@ -189,7 +195,7 @@ func (s *Server) handleRequest(_ http.ResponseWriter, req *http.Request) {
 	}
 
 	s.recordServiceTime(serviceTime)
-	s.metrics.ServerActiveRequests.Inc()
+	s.metrics.ServerInflightRequests.Inc()
 
 	// Simulate servicing a request, performing work in increments to simulate context switching between workers
 	workIncrement := serviceTime / 100
@@ -201,7 +207,7 @@ func (s *Server) handleRequest(_ http.ResponseWriter, req *http.Request) {
 		workCompleted += workIncrement
 	}
 
-	s.metrics.ServerActiveRequests.Dec()
+	s.metrics.ServerInflightRequests.Dec()
 }
 
 func (s *Server) recordServiceTime(serviceTime time.Duration) {

@@ -3,15 +3,16 @@ package main
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"time"
 
+	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 
 	"tripwire/pkg/client"
 	"tripwire/pkg/policy"
 	"tripwire/pkg/server"
+	"tripwire/pkg/util"
 )
 
 type Config struct {
@@ -27,6 +28,10 @@ type Strategy struct {
 	ServerPolicies policy.Configs `yaml:"server_policies"`
 }
 
+func (c *Config) isStatic() bool {
+	return c.Client.Static != nil && c.Server.Static != nil
+}
+
 func parseConfig(configData []byte) (*Config, error) {
 	var result Config
 	err := yaml.Unmarshal(configData, &result)
@@ -34,7 +39,7 @@ func parseConfig(configData []byte) (*Config, error) {
 		return &Config{}, err
 	}
 
-	// Find total client or server durations
+	// Find total clients or servers durations
 	var clientDuration, serverDuration time.Duration
 	var totalDuration time.Duration
 	for _, wl := range result.Client.Stages {
@@ -48,7 +53,7 @@ func parseConfig(configData []byte) (*Config, error) {
 	serverDuration = totalDuration
 	result.maxDuration = max(clientDuration, serverDuration)
 
-	// Assign client and server durations if needed
+	// Assign clients and servers durations if needed
 	for _, stage := range result.Client.Stages {
 		if stage.Duration == 0 {
 			stage.Duration = serverDuration
@@ -60,7 +65,7 @@ func parseConfig(configData []byte) (*Config, error) {
 		}
 	}
 
-	// Sum server service time weights
+	// Sum servers service time weights
 	if result.Server.Stages != nil {
 		for _, stage := range result.Server.Stages {
 			stage.WeightSum = stage.ServiceTimes.Sum()
@@ -70,66 +75,40 @@ func parseConfig(configData []byte) (*Config, error) {
 	return &result, nil
 }
 
-type ConfigServer struct {
-	client *client.Client
-	server *server.Server
-}
-
-func (c *ConfigServer) listen() {
-	http.HandleFunc("/client", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			c.getClient(w, r)
-		} else if r.Method == http.MethodPost {
-			c.updateClient(w, r)
+func NewConfigServer(clients []*client.Client, servers []*server.Server, logger *zap.SugaredLogger) *util.Server {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/client", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			updateClients(clients, w, r)
 		} else {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	})
-	http.HandleFunc("/server", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			c.getServer(w, r)
-		} else if r.Method == http.MethodPost {
-			c.updateServer(w, r)
+	mux.HandleFunc("/server", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			updateServers(servers, w, r)
 		} else {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	})
-
-	log.Println("Config server is running on :9095")
-	if err := http.ListenAndServe(":9095", nil); err != nil {
-		log.Fatalf("Config server failed to start: %v", err)
-	}
+	return util.NewServer(mux, 9095, logger)
 }
 
-func (c *ConfigServer) getClient(w http.ResponseWriter, r *http.Request) {
-	getConfig(w, c.client.StaticConfig())
-}
-
-func (c *ConfigServer) getServer(w http.ResponseWriter, r *http.Request) {
-	getConfig(w, c.server.StaticConfig())
-}
-
-func getConfig[T any](w http.ResponseWriter, config T) {
-	yamlData, err := yaml.Marshal(config)
-	if err != nil {
-		http.Error(w, "Failed to encode YAML", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/x-yaml")
-	w.Write(yamlData)
-}
-
-func (c *ConfigServer) updateClient(w http.ResponseWriter, r *http.Request) {
+func updateClients(clients []*client.Client, w http.ResponseWriter, r *http.Request) {
 	var config client.Static
 	parseConfigUpdate(w, r, &config)
-	c.client.UpdateStaticConfig(&config)
+	for _, cl := range clients {
+		cl.UpdateStaticConfig(&config)
+	}
 	fmt.Fprintf(w, "Client config updated successfully\n")
 }
 
-func (c *ConfigServer) updateServer(w http.ResponseWriter, r *http.Request) {
+func updateServers(servers []*server.Server, w http.ResponseWriter, r *http.Request) {
 	var config server.WeightedServiceTimes
 	parseConfigUpdate(w, r, &config)
-	c.server.UpdateStaticConfig(config)
+	for _, s := range servers {
+		s.UpdateStaticConfig(config)
+	}
 	fmt.Fprintf(w, "Server config updated successfully\n")
 }
 

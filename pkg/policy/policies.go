@@ -22,15 +22,12 @@ import (
 type Configs []*Config
 
 func (c *Config) UnmarshalYAML(value *yaml.Node) error {
-	c.VegasConfig = &VegasConfig{}
-	c.GradientConfig = &GradientConfig{}
-	c.Gradient2Config = &Gradient2Config{}
 	type Alias Config
 	tmp := (*Alias)(c)
 	return value.Decode(tmp)
 }
 
-func (c *Config) ToPolicy(metrics *metrics.Metrics, logger *zap.Logger) (failsafe.Policy[*http.Response], time.Duration) {
+func (c *Config) ToPolicy(metrics *metrics.StrategyMetrics, logger *zap.Logger) (failsafe.Policy[*http.Response], time.Duration) {
 	var policy failsafe.Policy[*http.Response]
 	var timeOut time.Duration
 	slogger := slog.New(zapslog.NewHandler(logger.Core()))
@@ -114,7 +111,7 @@ func (c *Config) ToPolicy(metrics *metrics.Metrics, logger *zap.Logger) (failsaf
 	return policy, timeOut
 }
 
-func (c Configs) ToExecutor(metrics *metrics.Metrics, logger *zap.Logger) (failsafe.Executor[*http.Response], time.Duration) {
+func (c Configs) ToExecutor(metrics *metrics.StrategyMetrics, logger *zap.Logger) (failsafe.Executor[*http.Response], time.Duration) {
 	var minTimeout time.Duration
 	var policies []failsafe.Policy[*http.Response]
 	for _, config := range c {

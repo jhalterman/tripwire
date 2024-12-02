@@ -1,21 +1,13 @@
 # Compares the Failsafe-go adaptive limiter to the go-concurrency-limits limiters.
 
 client:
-  stages:
-    - rps: 100
+  static:
+    rps: 100
 
 server:
   threads: 12
-  stages:
-    - service_times:
-        - service_time: 50ms
-      duration: 20s
-    - service_times:
-        - service_time: 150ms
-      duration: 40s
-    - service_times:
-        - service_time: 50ms
-      duration: 20s
+  static:
+    - service_time: 50ms
 
 strategies:
   - name: adaptivelimiter

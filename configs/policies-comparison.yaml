@@ -1,6 +1,6 @@
 client:
-  static:
-    rps: 100
+  stages:
+    - rps: 100
 
 server:
   threads: 12
@@ -19,7 +19,7 @@ strategies:
   - name: client bulkhead
     client_policies:
       - bulkhead:
-          max_concurrency: 20
+          max_concurrency: 40
 
   - name: client rate limiter
     client_policies:
@@ -28,7 +28,7 @@ strategies:
 
   - name: client timeout
     client_policies:
-      - timeout: 300ms
+      - timeout: 5s
 
   - name: client circuitbreaker and timeout
     client_policies:
@@ -50,7 +50,6 @@ strategies:
           max_limit: 150
           initial_limit: 20
           max_limit_factor: 5
-          max_execution_time: 2s
           correlation_window_size: 20
           variation_window_size: 8
           smoothing_factor: .1

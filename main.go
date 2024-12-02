@@ -39,39 +39,57 @@ func main() {
 	if err != nil {
 		logger.Fatalw("failed to parse config file", "error", err)
 	}
+	metrics := metrics.New(logger)
 
-	m := metrics.NewMetrics(logger)
-	for i, strategy := range config.Strategies {
-		m.Reset()
-		if i > 0 {
-			time.Sleep(5 * time.Second)
-		}
-
-		runID := fmt.Sprintf("%s %s", time.Now().Format("15:04:05"), strategy.Name)
-		logger.Info("running strategy ", strategy.Name)
-		m.Start(runID, config.maxDuration)
-
-		var wg sync.WaitGroup
-		wg.Add(1)
-		serverExecutor, _ := strategy.ServerPolicies.ToExecutor(m, logger.Desugar())
-		aServer := server.NewServer(config.Server, m, serverExecutor, logger)
-		go aServer.Start(&wg)
-
-		clientExecutor, minClientTimeout := strategy.ClientPolicies.ToExecutor(m, logger.Desugar())
-		m.MinTimeout.Set(minClientTimeout.Seconds())
-		wg.Add(1)
-		aClient := client.NewClient(config.Client, m, clientExecutor, logger)
-		go aClient.Start(&wg)
-
-		if config.Client.Static != nil || config.Server.Static != nil {
-			configServer := &ConfigServer{
-				client: aClient,
-				server: aServer,
+	var wg sync.WaitGroup
+	if !config.isStatic() {
+		// Run staged strategies sequentially
+		for i, strategy := range config.Strategies {
+			if i > 0 {
+				time.Sleep(5 * time.Second)
 			}
-			go configServer.listen()
+			metrics.Start()
+			logger = logger.With("strategy", strategy.Name)
+			startClientAndServer(logger, config, strategy, metrics, &wg)
+			wg.Wait()
+			metrics.Shutdown()
+		}
+	} else {
+		metrics.Start()
+		// Run static strategies in parallel
+		var clients []*client.Client
+		var servers []*server.Server
+		for _, strategy := range config.Strategies {
+			logger = logger.With("strategy", strategy.Name)
+			aClient, aServer := startClientAndServer(logger, config, strategy, metrics, &wg)
+			clients = append(clients, aClient)
+			servers = append(servers, aServer)
 		}
 
+		configServer := NewConfigServer(clients, servers, logger)
+		configServer.Start()
 		wg.Wait()
-		m.Shutdown()
+		configServer.Shutdown()
+		metrics.Shutdown()
 	}
+}
+
+func startClientAndServer(logger *zap.SugaredLogger, config *Config, strategy *Strategy, metrics *metrics.Metrics, wg *sync.WaitGroup) (*client.Client, *server.Server) {
+	logger.Info("running strategy ", strategy.Name)
+	runID := fmt.Sprintf("%s %s", time.Now().Format("15:04:05"), strategy.Name)
+	strategyMetrics := metrics.WithStrategy(runID, strategy.Name)
+	strategyMetrics.RunDuration.Set(config.maxDuration.Seconds())
+
+	serverExecutor, _ := strategy.ServerPolicies.ToExecutor(strategyMetrics, logger.Desugar())
+	aServer, addr := server.NewServer(config.Server, strategyMetrics, serverExecutor, logger)
+	wg.Add(1)
+	go aServer.Start(wg)
+
+	clientExecutor, minClientTimeout := strategy.ClientPolicies.ToExecutor(strategyMetrics, logger.Desugar())
+	aClient := client.NewClient(addr, config.Client, strategyMetrics, clientExecutor, logger)
+	strategyMetrics.MinTimeout.Set(minClientTimeout.Seconds())
+	wg.Add(1)
+	go aClient.Start(wg)
+
+	return aClient, aServer
 }
