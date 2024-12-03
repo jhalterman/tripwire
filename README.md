@@ -1,12 +1,18 @@
 # Tripwire
 
-A client/server load simulator for testing different load scenarios and resilience strategies.
+A tool for testing system resilience strategies.
 
-## Usage
+![banner](./docs/images/banner.png)
 
-Tripwire performs load simulations given configuration for a client, server, and some resilience strategies. Load can be adjusted manually via a REST API, or can run through a sequence of stages.
+## Motivation
 
-### Staged Testing
+The goal of Tripwire is to help you understand how different resilience strategies such as timeouts, bulkheads, circuit breakers, rate limiters, and various adaptive limiter implementations compare to each other for different workloads and configurations.
+
+## How it Works
+
+Tripwire performs client/server load simulations based on some configuration, which includes request rates, service times, and server threads. Resilience strategies can be configured on the cient or server sides to handle overload, and are provided by [Failsafe-go](https://failsafe-go.dev) and [go-concurrency-limits](https://github.com/platinummonkey/go-concurrency-limits). Strategies can be run sequentially or in parallel to understand how they compare, and load can be defined in stages or adjusted manually.
+
+## Staged Testing
 
 Clients can send requests in one or more stages, which are performed sequentially. This allows load on a server to be gradually increased or decreased over time. An example client config:
 
@@ -21,21 +27,25 @@ client:
     duration: 10s
 ```
 
-Servers can handle requests in one or more stages, which are performed sequentially. This allows a server to simulate changing service times. Each stage contains a weighted service time distribution from which the simulated servicing for each request will be selected, based on the weights, which are optional. Each server also has a fixed number of simulated threads, which represent the max concurrency that the server can support before requests start queueing. An example server config:
+Servers can handle requests in one or more stages as well. This allows a server to simulate changing service times. Each stage contains a weighted service time distribution from which the simulated servicing for each request will be selected, based on the weights, which are optional. Each server also has a fixed number of simulated threads, which represent the max concurrency that the server can support before requests start queueing. An example server config:
 
 ```yaml
 server:
-  stages:
-  - duration: 60s
-    service_times:
-      - service_time: 40ms
-        weight: 8
-      - service_time: 100ms
-        weight: 2
   threads: 8
+  stages:
+  - duration: 50s
+    service_times:
+    - service_time: 40ms
+      weight: 70
+    - service_time: 80ms
+      weight: 20
+    - service_time: 200ms
+      weight: 7
+    - service_time: 500ms
+      weight: 3
 ```
 
-With staged testing, Tripwire will run through a sequence of strategies, consisting of client or server-side policy combinations. This allows you to compare how different strategies perform against some load. An example strategies config:
+With staged testing, Tripwire will run the specified client and server stages against each strategy *sequenially*. This allows you to compare how different strategies perform against some load. An example strategies config:
 
 ```yaml
 strategies:
@@ -53,11 +63,11 @@ strategies:
       - timeout: 300ms
 ```
 
-See the [configs](configs) directory for example configs.
+See the [policy config definitions](https://github.com/jhalterman/tripwire/blob/main/pkg/policy/config.go) for more on their options, and see the [configs](configs) directory for complete example configs.
 
-### Manual Testing
+## Manual Testing
 
-To experiment with different client or server load parameters, you can configure the client and server to use a static config rather than stages:
+To manually experiment with different client or server load parameters, you can configure the client and server to use a static config rather than stages:
 
 ```yaml
 client:
@@ -70,23 +80,17 @@ server:
     - service_time: 50ms
 ```
 
-Then you can adjust the static client and server config via a REST API:
+Then you can adjust the client or server config via a REST API:
 
 ```sh
-curl --request POST --url http://localhost:9095/client \
-  --header 'Content-Type: application/yaml' \
-  --data 'rps: 200'
+curl -X POST http://localhost:9095/client -d 'rps: 200'
 
-curl --request POST --url http://localhost:9095/server \
-  --header 'Content-Type: application/yaml' \
-  --data '- service_time: 60ms'
+curl -X POST http://localhost:9095/server -d '- service_time: 200ms'
 ```
 
-### More on Strategies
+When manually testing, Tripwire will run through any specified strategies *in parallel*. This allows you to observe the impact of load changes on multiple strategies at the same time, which can be individually selected on the [Tripwire dashboard](#dashboard).
 
-Resilience strategies may consist of [Failsafe-go](https://failsafe-go.dev) policies and [go-concurrency-limits](https://github.com/platinummonkey/go-concurrency-limits) limiters. See the [policy config definitions](https://github.com/jhalterman/tripwire/blob/main/pkg/policy/config.go) for details on how to configure these, and the [configs](configs) directory for example configs.
-
-### Running
+## Running
 
 To run Tripwire, first build the binary:
 
@@ -102,13 +106,17 @@ Then run it with some config file:
 
 ## Dashboard
 
-To observe how scenarios perform in terms of request rates, queueing, concurrency, response times, and load shedding, Tripwire provides a Grafana dashboard with various metrics:
+To observe how strategies perform in terms of request rates, queueing, concurrency, response times, and load shedding, Tripwire provides a Grafana dashboard with various metrics:
 
 ![metrics](./docs/images/metrics.png)
 
 It also includes a summary of how runs for different strategies compare:
 
-![metrics](./docs/images/runs.png)
+![runs](./docs/images/runs.png)
+
+When [manually testing](#manual-testing), you can select a specific strategy to view results for:
+
+![strategy](./docs/images/strategy.png)
 
 To start up Grafana and gather metrics from Tripwire:
 

@@ -11,8 +11,10 @@ client:
       duration: 10s
 
 server:
+  threads: 8
   stages:
-    - service_times:
+    - duration: 60s
+      service_times:
         - service_time: 40ms
           weight: 70
         - service_time: 80ms
@@ -21,7 +23,6 @@ server:
           weight: 7
         - service_time: 500ms
           weight: 3
-  threads: 8
 
 strategies:
   - name: client timeout
