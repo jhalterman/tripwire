@@ -5,14 +5,16 @@ import (
 )
 
 type Config struct {
-	Timeout                time.Duration `yaml:"timeout"`
-	*RateLimiterConfig     `yaml:"ratelimiter"`
-	*BulkheadConfig        `yaml:"bulkhead"`
-	*CircuitBreakerConfig  `yaml:"circuitbreaker"`
-	*AdaptiveLimiterConfig `yaml:"adaptivelimiter"`
-	*VegasConfig           `yaml:"vegaslimiter"`
-	*GradientConfig        `yaml:"gradientlimiter"`
-	*Gradient2Config       `yaml:"gradient2limiter"`
+	Timeout                 time.Duration `yaml:"timeout"`
+	*RateLimiterConfig      `yaml:"ratelimiter"`
+	*BulkheadConfig         `yaml:"bulkhead"`
+	*CircuitBreakerConfig   `yaml:"circuitbreaker"`
+	*AdaptiveLimiterConfig  `yaml:"adaptivelimiter"`
+	*AdaptiveLimiter2Config `yaml:"adaptivelimiter2"`
+	*VegasConfig            `yaml:"vegaslimiter"`
+	*Vegas2Config           `yaml:"vegas2limiter"`
+	*GradientConfig         `yaml:"gradientlimiter"`
+	*Gradient2Config        `yaml:"gradient2limiter"`
 }
 
 type RateLimiterType int
@@ -67,6 +69,21 @@ type AdaptiveLimiterConfig struct {
 	SmoothingFactor        float32       `yaml:"smoothing_factor"`
 }
 
+type AdaptiveLimiter2Config struct {
+	ShortWindowMinDuration time.Duration `yaml:"short_window_min_duration"`
+	ShortWindowMaxDuration time.Duration `yaml:"short_window_max_duration"`
+	ShortWindowMinSamples  uint          `yaml:"short_window_min_samples"`
+	LongWindowSize         uint          `yaml:"long_window_size"`
+	MinLimit               uint          `yaml:"min_limit"`
+	MaxLimit               uint          `yaml:"max_limit"`
+	InitialLimit           uint          `yaml:"initial_limit"`
+	MaxLimitFactor         float32       `yaml:"max_limit_factor"`
+	MaxExecutionTime       time.Duration `yaml:"max_execution_time"`
+	// CorrelationWindowSize  uint          `yaml:"correlation_window_size"`
+	// VariationWindowSize    uint          `yaml:"variation_window_size"`
+	// SmoothingFactor        float32       `yaml:"smoothing_factor"`
+}
+
 // See https://pkg.go.dev/github.com/platinummonkey/go-concurrency-limits@v0.8.0/limit#VegasLimit for details on how the Vegas limit works.
 type VegasConfig struct {
 	ShortWindowMinDuration time.Duration `yaml:"short_window_min_duration"`
@@ -75,6 +92,17 @@ type VegasConfig struct {
 	MaxLimit               uint          `yaml:"max_limit"`
 	InitialLimit           uint          `yaml:"initial_limit"`
 	SmoothingFactor        float32       `yaml:"smoothing_factor"`
+}
+
+type Vegas2Config struct {
+	ShortWindowMinDuration time.Duration `yaml:"short_window_min_duration"`
+	ShortWindowMaxDuration time.Duration `yaml:"short_window_max_duration"`
+	ShortWindowMinSamples  uint          `yaml:"short_window_min_samples"`
+	MinLimit               uint          `yaml:"min_limit"`
+	MaxLimit               uint          `yaml:"max_limit"`
+	InitialLimit           uint          `yaml:"initial_limit"`
+	MaxLimitFactor         float32       `yaml:"max_limit_factor"`
+	MaxExecutionTime       time.Duration `yaml:"max_execution_time"`
 }
 
 // See https://pkg.go.dev/github.com/platinummonkey/go-concurrency-limits@v0.8.0/limit#GradientLimit for details on how the gradient limit works.

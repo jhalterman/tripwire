@@ -8,10 +8,12 @@ import (
 
 	"github.com/failsafe-go/failsafe-go"
 	"github.com/failsafe-go/failsafe-go/adaptivelimiter"
+	"github.com/failsafe-go/failsafe-go/adaptivelimiter2"
 	"github.com/failsafe-go/failsafe-go/bulkhead"
 	"github.com/failsafe-go/failsafe-go/circuitbreaker"
 	"github.com/failsafe-go/failsafe-go/ratelimiter"
 	"github.com/failsafe-go/failsafe-go/timeout"
+	"github.com/failsafe-go/failsafe-go/vegaslimiter"
 	"go.uber.org/zap"
 	"go.uber.org/zap/exp/zapslog"
 	"gopkg.in/yaml.v3"
@@ -97,6 +99,40 @@ func (c *Config) ToPolicy(metrics *metrics.StrategyMetrics, logger *zap.Logger) 
 				metrics.ConcurrencyLimit.Set(float64(e.NewLimit))
 			}).
 			Build()
+	} else if c.AdaptiveLimiter2Config != nil {
+		pc := c.AdaptiveLimiter2Config
+		metrics.ConcurrencyLimit.Set(float64(pc.InitialLimit))
+		policy = adaptivelimiter2.NewBuilder[*http.Response]().
+			WithShortWindow(pc.ShortWindowMinDuration, pc.ShortWindowMaxDuration, pc.ShortWindowMinSamples).
+			WithLongWindow(pc.LongWindowSize).
+			WithLimits(pc.MinLimit, pc.MaxLimit, pc.InitialLimit).
+			WithMaxLimitFactor(pc.MaxLimitFactor).
+			WithMaxExecutionTime(pc.MaxExecutionTime).
+			// WithCorrelationWindow(pc.CorrelationWindowSize).
+			// WithVariationWindow(pc.VariationWindowSize).
+			// WithSmoothing(pc.SmoothingFactor).
+			WithLogger(slog.New(zapslog.NewHandler(logger.Core()))).
+			OnLimitChanged(func(e adaptivelimiter2.LimitChangedEvent) {
+				metrics.ConcurrencyLimit.Set(float64(e.NewLimit))
+			}).
+			Build()
+	} else if c.Vegas2Config != nil {
+		pc := c.Vegas2Config
+		metrics.ConcurrencyLimit.Set(float64(pc.InitialLimit))
+		policy = vegaslimiter.NewBuilder[*http.Response]().
+			WithShortWindow(pc.ShortWindowMinDuration, pc.ShortWindowMaxDuration, pc.ShortWindowMinSamples).
+			// WithLongWindow(pc.LongWindowSize).
+			WithLimits(pc.MinLimit, pc.MaxLimit, pc.InitialLimit).
+			WithMaxLimitFactor(pc.MaxLimitFactor).
+			WithMaxExecutionTime(pc.MaxExecutionTime).
+			// WithCorrelationWindow(pc.CorrelationWindowSize).
+			// WithVariationWindow(pc.VariationWindowSize).
+			// WithSmoothing(pc.SmoothingFactor).
+			WithLogger(slog.New(zapslog.NewHandler(logger.Core()))).
+			OnLimitChanged(func(e vegaslimiter.LimitChangedEvent) {
+				metrics.ConcurrencyLimit.Set(float64(e.NewLimit))
+			}).
+			Build()
 	} else if c.VegasConfig != nil {
 		metrics.ConcurrencyLimit.Set(float64(c.VegasConfig.InitialLimit))
 		policy = c.VegasConfig.Build(slogger, limitChangedListener)
@@ -110,6 +146,9 @@ func (c *Config) ToPolicy(metrics *metrics.StrategyMetrics, logger *zap.Logger) 
 
 	return policy, timeOut
 }
+
+var adaptiveLimiterType = reflect.TypeOf((*adaptivelimiter.AdaptiveLimiter[*http.Response])(nil)).Elem()
+var vegasLimiterType = reflect.TypeOf((*vegaslimiter.VegasLimiter[*http.Response])(nil)).Elem()
 
 func (c Configs) ToExecutor(metrics *metrics.StrategyMetrics, logger *zap.Logger) (failsafe.Executor[*http.Response], time.Duration) {
 	var minTimeout time.Duration
@@ -128,9 +167,13 @@ func (c Configs) ToExecutor(metrics *metrics.StrategyMetrics, logger *zap.Logger
 
 	executor := failsafe.NewExecutor(policies...)
 	for _, policy := range policies {
-		adaptiveLimiterType := reflect.TypeOf((*adaptivelimiter.AdaptiveLimiter[*http.Response])(nil)).Elem()
 		if reflect.TypeOf(policy).Implements(adaptiveLimiterType) {
 			p := policy.(adaptivelimiter.AdaptiveLimiter[*http.Response])
+			executor = executor.OnDone(func(e failsafe.ExecutionDoneEvent[*http.Response]) {
+				metrics.QueuedRequests.Set(float64(p.Blocked()))
+			})
+		} else if reflect.TypeOf(policy).Implements(vegasLimiterType) {
+			p := policy.(vegaslimiter.VegasLimiter[*http.Response])
 			executor = executor.OnDone(func(e failsafe.ExecutionDoneEvent[*http.Response]) {
 				metrics.QueuedRequests.Set(float64(p.Blocked()))
 			})
