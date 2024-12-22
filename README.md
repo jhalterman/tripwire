@@ -10,39 +10,43 @@ The goal of Tripwire is to help you understand how different resilience strategi
 
 ## How it Works
 
-Tripwire performs client/server load simulations based on some configuration, which includes request rates, service times, and server threads. Resilience strategies can be configured on the cient or server sides to handle overload, and are provided by [Failsafe-go](https://failsafe-go.dev) and [go-concurrency-limits](https://github.com/platinummonkey/go-concurrency-limits). Strategies can be run sequentially or in parallel to understand how they compare, and load can be defined in stages or adjusted manually.
+Tripwire performs client/server load simulations based on some configuration, which includes request rates, service times, and server threads. Resilience strategies can be configured on the cient or server sides to handle overload, and are provided by [Failsafe-go](https://failsafe-go.dev) and [go-concurrency-limits](https://github.com/platinummonkey/go-concurrency-limits). Workloads and strategies can be run sequentially or in parallel to understand how they compare, and load can adjusted manually if desired.
 
-## Staged Testing
+## Stages
 
-Clients can send requests in one or more stages, which are performed sequentially. This allows load on a server to be gradually increased or decreased over time. An example client config:
+Clients can send requests in one or more stages, which are performed sequentially, and last for some duration. Each stage contains a weighted distribution of service times from which the simulated servicing of each request will be selected, based on weights, which are optional.
+
+This allows load on a server to be gradually increased or decreased over time. Example client config with stages:
 
 ```yaml
 client:
   stages:
-  - rps: 100
-    duration: 10s
-  - rps: 200
-    duration: 20s
-  - rps: 100
-    duration: 10s
+    - duration: 20s
+      rps: 100
+      service_times:
+        - service_time: 50ms
+    - duration: 40s
+      service_times:
+        - service_time: 40ms
+          weight: 70
+        - service_time: 80ms
+          weight: 20
+        - service_time: 200ms
+          weight: 7
+        - service_time: 500ms
+          weight: 3
+    - duration: 20s
+      service_times:
+        - service_time: 50ms
 ```
 
-Servers can handle requests in one or more stages as well. This allows a server to simulate changing service times. Each stage contains a weighted service time distribution from which the simulated servicing for each request will be selected, based on the weights, which are optional. Each server also has a fixed number of simulated threads, which represent the max concurrency that the server can support before requests start queueing. An example server config:
+The `rps` and `service_times` carry over from one stage to another if they're not changed.
+
+Each server also has a fixed number of simulated threads, which represent the max concurrency that the server can support before requests start queueing. Example server config:
 
 ```yaml
 server:
   threads: 8
-  stages:
-  - duration: 50s
-    service_times:
-    - service_time: 40ms
-      weight: 70
-    - service_time: 80ms
-      weight: 20
-    - service_time: 200ms
-      weight: 7
-    - service_time: 500ms
-      weight: 3
 ```
 
 With staged testing, Tripwire will run the specified client and server stages against each strategy *sequenially*. This allows you to compare how different strategies perform against some load. An example strategies config:
@@ -65,30 +69,41 @@ strategies:
 
 See the [policy config definitions](https://github.com/jhalterman/tripwire/blob/main/pkg/policy/config.go) for more on their options, and see the [configs](configs) directory for complete example configs.
 
-## Manual Testing
+## Workloads
 
-To manually experiment with different client or server load parameters, you can configure the client and server to use a static config rather than stages:
+While stages are executed sequentially, workloads are executed in parallel, run indefinitely, and can be adjusted via a REST API. Example client config with workloads:
 
 ```yaml
 client:
-  static:
-    rps: 100
+  workloads:
+    - name: writes
+      rps: 100
+      service_times:
+        - service_time: 50ms
 
-server:
-  threads: 12
-  static:
-    - service_time: 50ms
+    - name: reads
+      rps: 20
+      service_times:
+        - service_time: 100ms
 ```
 
-Then you can adjust the client or server config via a REST API:
+Then you can adjust the workloads via a REST API:
 
 ```sh
-curl -X POST http://localhost:9095/client -d 'rps: 200'
+curl -X POST http://localhost:9095/client --data-binary @- <<'EOF'
+- name: writes
+  rps: 100
+  service_times:
+    - service_time: 20ms
 
-curl -X POST http://localhost:9095/server -d '- service_time: 200ms'
+- name: reads
+  rps: 20
+  service_times:
+    - service_time: 70ms
+EOF
 ```
 
-When manually testing, Tripwire will run through any specified strategies *in parallel*. This allows you to observe the impact of load changes on multiple strategies at the same time, which can be individually selected on the [Tripwire dashboard](#dashboard).
+When using workloads, Tripwire will run through any specified strategies *in parallel*. This allows you to observe the impact of load changes on multiple strategies at the same time, which can be individually selected on the [Tripwire dashboard](#dashboard).
 
 ## Running
 
