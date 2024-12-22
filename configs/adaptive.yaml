@@ -1,13 +1,19 @@
 # Static test (must be adjusted via the REST API) of the adaptive limiter.
 
 client:
-  static:
-    rps: 100
+  workloads:
+    - name: writes
+      rps: 100
+      service_times:
+        - service_time: 50ms
+
+    - name: reads
+      rps: 20
+      service_times:
+        - service_time: 100ms
 
 server:
   threads: 12
-  static:
-    - service_time: 50ms
 
 strategies:
   - name: adaptivelimiter

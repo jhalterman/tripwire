@@ -3,8 +3,6 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
-	"math/rand"
 	"net"
 	"net/http"
 	"sync"
@@ -13,84 +11,14 @@ import (
 	"github.com/failsafe-go/failsafe-go"
 	"github.com/failsafe-go/failsafe-go/failsafehttp"
 	"go.uber.org/zap"
+	"gopkg.in/yaml.v3"
 
 	"tripwire/pkg/metrics"
 )
 
 type Config struct {
-	Static  WeightedServiceTimes `yaml:"static"`
-	Stages  []*Stage             `yaml:"stages"`
-	Threads uint                 `yaml:"threads"`
-}
-
-type Stage struct {
-	Duration     time.Duration        `yaml:"duration"`
-	ServiceTimes WeightedServiceTimes `yaml:"service_times"`
-	WeightSum    uint
-}
-
-func (s *Stage) String() string {
-	return fmt.Sprintf("Duration: %ds, ServiceTimes: %s", int(s.Duration.Seconds()), s.ServiceTimes.String())
-}
-
-type WeightedServiceTime struct {
-	ServiceTime time.Duration `yaml:"service_time"`
-	Weight      uint          `yaml:"weight"`
-}
-
-func (w *WeightedServiceTime) String() string {
-	return fmt.Sprintf(`{ServiceTime: %dms, Weight: %d}`, int(w.ServiceTime.Milliseconds()), w.Weight)
-}
-
-func (w *WeightedServiceTime) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	type alias WeightedServiceTime
-	raw := alias{
-		Weight: 1,
-	}
-	if err := unmarshal(&raw); err != nil {
-		return err
-	}
-	*w = WeightedServiceTime(raw)
-	return nil
-}
-
-type WeightedServiceTimes []*WeightedServiceTime
-
-func (w WeightedServiceTimes) String() string {
-	var result string
-	for _, v := range w {
-		result += v.String() + ", "
-	}
-	if len(result) > 0 {
-		result = "[" + result[:len(result)-2] + "]"
-	} else {
-		result = "[]"
-	}
-	return result
-}
-
-func (w WeightedServiceTimes) Sum() uint {
-	sum := uint(0)
-	for _, ld := range w {
-		sum += ld.Weight
-	}
-	return sum
-}
-
-// randomServiceTime selects a random service time based on the configuration.
-func (s *Stage) randomServiceTime() (time.Duration, error) {
-	return s.serviceTime(rand.Intn(int(s.WeightSum)))
-}
-
-// serviceTime selects a serviceTime based on the weight and configuration.
-func (s *Stage) serviceTime(weight int) (time.Duration, error) {
-	for _, wl := range s.ServiceTimes {
-		weight -= int(wl.Weight)
-		if weight < 0 {
-			return wl.ServiceTime, nil
-		}
-	}
-	return 0, fmt.Errorf("failed to compute service time")
+	Threads  uint `yaml:"threads"`
+	Duration time.Duration
 }
 
 type Server struct {
@@ -100,8 +28,6 @@ type Server struct {
 	logger   *zap.SugaredLogger
 	executor failsafe.Executor[*http.Response]
 
-	mtx              sync.RWMutex
-	currentStage     *Stage // Guarded by mtx
 	availableThreads chan struct{}
 }
 
@@ -140,67 +66,30 @@ func (s *Server) Start(wg *sync.WaitGroup) {
 		}
 	}()
 
-	if s.config.Static != nil {
-		// Run static configuration
-		s.logger.Infow("starting server with static configuration", "config", s.config.Static)
-		s.UpdateStage(&Stage{
-			ServiceTimes: s.config.Static,
-			WeightSum:    s.config.Static.Sum(),
-		})
-		time.Sleep(24 * time.Hour)
-	} else {
-		// Run staged configuration
-		for _, stage := range s.config.Stages {
-			s.UpdateStage(stage)
-			time.Sleep(stage.Duration)
-		}
-
-		s.logger.Infow("server stages finished")
-	}
-
+	time.Sleep(s.config.Duration)
+	s.logger.Infow("server stopping")
 	_ = server.Shutdown(context.Background())
 	s.metrics.ServerServiceTime.Set(0)
 }
 
-func (s *Server) UpdateStage(stage *Stage) {
-	s.mtx.Lock()
-	s.logger.Infow("starting server stage", "stage", stage)
-	s.currentStage = stage
-	s.mtx.Unlock()
+type Request struct {
+	ServiceTime time.Duration `yaml:"service_time"`
 }
 
-func (s *Server) StaticConfig() WeightedServiceTimes {
-	s.mtx.RLock()
-	defer s.mtx.RUnlock()
-	return s.config.Static
-}
-
-func (s *Server) UpdateStaticConfig(staticConfig WeightedServiceTimes) {
-	if staticConfig != nil {
-		s.UpdateStage(&Stage{
-			ServiceTimes: staticConfig,
-			WeightSum:    staticConfig.Sum(),
-		})
-	}
-}
-
-func (s *Server) handleRequest(_ http.ResponseWriter, req *http.Request) {
-	s.mtx.RLock()
-	currentStage := s.currentStage
-	s.mtx.RUnlock()
-
-	serviceTime, err := currentStage.randomServiceTime()
-	if err != nil {
-		s.logger.Fatal(err)
+func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
+	var req Request
+	if err := yaml.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Error decoding YAML: "+err.Error(), http.StatusBadRequest)
+		return
 	}
 
-	s.recordServiceTime(serviceTime)
+	s.recordServiceTime(req.ServiceTime)
 	s.metrics.ServerInflightRequests.Inc()
 
 	// Simulate servicing a request, performing work in increments to simulate context switching between workers
-	workIncrement := serviceTime / 100
+	workIncrement := req.ServiceTime / 100
 	var workCompleted time.Duration
-	for workCompleted < serviceTime && req.Context().Err() == nil {
+	for workCompleted < req.ServiceTime && r.Context().Err() == nil {
 		<-s.availableThreads
 		time.Sleep(workIncrement)
 		s.availableThreads <- struct{}{}

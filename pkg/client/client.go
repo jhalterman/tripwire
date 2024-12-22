@@ -1,15 +1,16 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net"
 	"net/http"
 	"sync"
 	"time"
 
-	"github.com/HdrHistogram/hdrhistogram-go"
 	"github.com/failsafe-go/failsafe-go"
 	"github.com/failsafe-go/failsafe-go/adaptivelimiter"
 	"github.com/failsafe-go/failsafe-go/bulkhead"
@@ -18,26 +19,93 @@ import (
 	"github.com/failsafe-go/failsafe-go/ratelimiter"
 	"github.com/failsafe-go/failsafe-go/timeout"
 	"go.uber.org/zap"
+	"gopkg.in/yaml.v3"
 
 	"tripwire/pkg/metrics"
+	"tripwire/pkg/server"
 )
 
 type Config struct {
-	Static *Static  `yaml:"static"`
-	Stages []*Stage `yaml:"stages"`
+	Workloads   []*Workload `yaml:"workloads"` // workloads run in parallel
+	Stages      []*Stage    `yaml:"stages"`    // stages run in sequence
+	MaxDuration time.Duration
 }
 
-type Static struct {
-	RPS uint `yaml:"rps"`
+type Workload struct {
+	Name         string               `yaml:"name"`
+	RPS          uint                 `yaml:"rps"`
+	ServiceTimes WeightedServiceTimes `yaml:"service_times"`
+	WeightSum    int
 }
 
 type Stage struct {
-	RPS      uint          `yaml:"rps"`
-	Duration time.Duration `yaml:"duration"`
+	Duration     time.Duration        `yaml:"duration"`
+	RPS          uint                 `yaml:"rps"`           // can be carried over from the previous stage
+	ServiceTimes WeightedServiceTimes `yaml:"service_times"` // can be carried over from the previous stage
+	WeightSum    int
 }
 
 func (s *Stage) String() string {
-	return fmt.Sprintf(`{RPS: %d, Duration: %ds}`, s.RPS, int(s.Duration.Seconds()))
+	return fmt.Sprintf("RPS: %d, Duration: %ds, ServiceTimes: %s", s.RPS, int(s.Duration.Seconds()), s.ServiceTimes.String())
+}
+
+type WeightedServiceTime struct {
+	ServiceTime time.Duration `yaml:"service_time"`
+	Weight      uint          `yaml:"weight"`
+}
+
+func (w *WeightedServiceTime) String() string {
+	return fmt.Sprintf(`{ServiceTime: %dms, Weight: %d}`, int(w.ServiceTime.Milliseconds()), w.Weight)
+}
+
+func (w *WeightedServiceTime) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type alias WeightedServiceTime
+	raw := alias{
+		Weight: 1,
+	}
+	if err := unmarshal(&raw); err != nil {
+		return err
+	}
+	*w = WeightedServiceTime(raw)
+	return nil
+}
+
+type WeightedServiceTimes []*WeightedServiceTime
+
+func (w WeightedServiceTimes) Sum() uint {
+	sum := uint(0)
+	for _, ld := range w {
+		sum += ld.Weight
+	}
+	return sum
+}
+
+// Random selects a random service time based on the weightSum.
+func (w WeightedServiceTimes) Random(weightSum int) time.Duration {
+	return w.Weighted(rand.Intn(weightSum))
+}
+
+func (w WeightedServiceTimes) Weighted(weight int) time.Duration {
+	for _, wl := range w {
+		weight -= int(wl.Weight)
+		if weight < 0 {
+			return wl.ServiceTime
+		}
+	}
+	return 0
+}
+
+func (w WeightedServiceTimes) String() string {
+	var result string
+	for _, v := range w {
+		result += v.String() + ", "
+	}
+	if len(result) > 0 {
+		result = "[" + result[:len(result)-2] + "]"
+	} else {
+		result = "[]"
+	}
+	return result
 }
 
 type Client struct {
@@ -48,9 +116,8 @@ type Client struct {
 	httpClient *http.Client
 	adaptive   bool
 
-	mtx                sync.RWMutex
-	cancelStageFn      func()
-	stageResponseTimes *hdrhistogram.Histogram // Guarded by mtx. Tracks response times for an individual stage.
+	mtx           sync.RWMutex
+	cancelStageFn func()
 }
 
 func NewClient(serverAddr net.Addr, config *Config, metrics *metrics.StrategyMetrics, executor failsafe.Executor[*http.Response], logger *zap.SugaredLogger) *Client {
@@ -68,23 +135,24 @@ func (c *Client) Start(wg *sync.WaitGroup) {
 
 	c.metrics.ClientReqTimeouts.Add(0)
 
-	if c.config.Static != nil {
-		// Run static configuration
+	if c.config.Workloads != nil {
 		for {
-			c.logger.Infow("starting client with static configuration", "config", c.config.Static)
 			ctx, cancelFn := context.WithCancel(context.Background())
+			c.mtx.Lock()
 			c.cancelStageFn = cancelFn
-			stage := &Stage{
-				RPS:      c.config.Static.RPS,
-				Duration: 24 * time.Hour,
+			c.mtx.Unlock()
+			c.mtx.RLock()
+			for _, workload := range c.config.Workloads {
+				go c.performWorkload(ctx, workload)
 			}
-			c.performStage(ctx, stage)
+			c.mtx.RUnlock()
+			select {
+			case <-ctx.Done():
+			}
 		}
 	} else if c.config.Stages != nil {
-		// Run staged configuration
 		for _, stage := range c.config.Stages {
-			c.logger.Infow("starting client stage", "stage", stage)
-			c.performStage(context.Background(), stage)
+			c.performStage(stage)
 		}
 
 		c.logger.Infow("client stages finished")
@@ -93,30 +161,47 @@ func (c *Client) Start(wg *sync.WaitGroup) {
 	c.metrics.ClientExpectedRps.Set(0)
 }
 
-func (c *Client) performStage(ctx context.Context, stage *Stage) {
-	c.mtx.Lock()
-	c.stageResponseTimes = hdrhistogram.New(-1, 60000, 5)
-	c.mtx.Unlock()
-
-	duration := time.After(stage.Duration)
-	ticker := time.NewTicker(time.Second / time.Duration(stage.RPS))
+func (c *Client) performWorkload(ctx context.Context, workload *Workload) {
+	c.logger.Infow("starting client workload", "workload", workload)
+	ticker := time.NewTicker(time.Second / time.Duration(workload.RPS))
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-duration:
-			return
 		case <-ticker.C:
-			c.metrics.ClientExpectedRps.Set(float64(stage.RPS))
-			go c.sendRequest()
+			c.metrics.ClientExpectedRps.Set(float64(workload.RPS))
+			go c.sendRequest(workload.ServiceTimes.Random(workload.WeightSum))
 		}
 	}
 }
 
-func (c *Client) sendRequest() {
+func (c *Client) performStage(stage *Stage) {
+	c.logger.Infow("starting client stage", "stage", stage)
+	duration := time.After(stage.Duration)
+	ticker := time.NewTicker(time.Second / time.Duration(stage.RPS))
+	defer ticker.Stop()
+	for {
+		select {
+		case <-duration:
+			return
+		case <-ticker.C:
+			c.metrics.ClientExpectedRps.Set(float64(stage.RPS))
+			go c.sendRequest(stage.ServiceTimes.Random(stage.WeightSum))
+		}
+	}
+}
+
+func (c *Client) sendRequest(serviceTime time.Duration) {
 	start := time.Now()
-	req, err := http.NewRequest("GET", c.serverAddr, nil)
+	request := server.Request{ServiceTime: serviceTime}
+	reqBody, err := yaml.Marshal(&request)
+	if err != nil {
+		c.logger.Fatalw("error marshalling YAML", "error", err)
+		return
+	}
+
+	req, err := http.NewRequest("POST", c.serverAddr, bytes.NewBuffer(reqBody))
 	if err != nil {
 		c.logger.Errorw("error creating request", "error", err)
 		return
@@ -167,15 +252,15 @@ func (c *Client) sendRequest() {
 	c.metrics.ClientReqFailures.Inc()
 }
 
-func (c *Client) StaticConfig() *Static {
+func (c *Client) Workloads() []*Workload {
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
-	return c.config.Static
+	return c.config.Workloads
 }
 
-func (c *Client) UpdateStaticConfig(staticConfig *Static) {
+func (c *Client) UpdateWorkloads(workloads []*Workload) {
 	c.mtx.Lock()
-	c.config.Static = staticConfig
+	c.config.Workloads = workloads
 	c.cancelStageFn()
 	c.mtx.Unlock()
 }
@@ -183,7 +268,4 @@ func (c *Client) UpdateStaticConfig(staticConfig *Static) {
 func (c *Client) recordResponseTime(start time.Time) {
 	responseTime := time.Since(start)
 	c.metrics.ClientReqResponseTimes.Observe(responseTime.Seconds())
-	c.stageResponseTimes.RecordValue(responseTime.Milliseconds())
-	mean := float64(c.stageResponseTimes.Mean()) / 1000
-	c.metrics.ClientAvgStageResponseTime.Set(mean)
 }

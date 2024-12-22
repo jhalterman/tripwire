@@ -42,7 +42,7 @@ func main() {
 	metrics := metrics.New(logger)
 
 	var wg sync.WaitGroup
-	if !config.isStatic() {
+	if len(config.Client.Workloads) == 0 {
 		// Run staged strategies sequentially
 		for i, strategy := range config.Strategies {
 			if i > 0 {
@@ -56,17 +56,15 @@ func main() {
 		}
 	} else {
 		metrics.Start()
-		// Run static strategies in parallel
+		// Run workloads with strategies in parallel
 		var clients []*client.Client
-		var servers []*server.Server
 		for _, strategy := range config.Strategies {
 			logger = logger.With("strategy", strategy.Name)
-			aClient, aServer := startClientAndServer(logger, config, strategy, metrics, &wg)
+			aClient, _ := startClientAndServer(logger, config, strategy, metrics, &wg)
 			clients = append(clients, aClient)
-			servers = append(servers, aServer)
 		}
 
-		configServer := NewConfigServer(clients, servers, logger)
+		configServer := NewConfigServer(clients, logger)
 		configServer.Start()
 		wg.Wait()
 		configServer.Shutdown()
@@ -78,7 +76,7 @@ func startClientAndServer(logger *zap.SugaredLogger, config *Config, strategy *S
 	logger.Info("running strategy ", strategy.Name)
 	runID := fmt.Sprintf("%s %s", time.Now().Format("15:04:05"), strategy.Name)
 	strategyMetrics := metrics.WithStrategy(runID, strategy.Name)
-	strategyMetrics.RunDuration.Set(config.maxDuration.Seconds())
+	strategyMetrics.RunDuration.Set(config.Client.MaxDuration.Seconds())
 
 	serverExecutor, _ := strategy.ServerPolicies.ToExecutor(strategyMetrics, logger.Desugar())
 	aServer, addr := server.NewServer(config.Server, strategyMetrics, serverExecutor, logger)

@@ -23,10 +23,9 @@ type Metrics struct {
 	RunDuration            *prometheus.GaugeVec
 
 	// Client metrics
-	ClientReqFailures          *prometheus.CounterVec
-	ClientExpectedRps          *prometheus.GaugeVec
-	ClientAvgStageResponseTime *prometheus.GaugeVec
-	ClientReqTimeouts          *prometheus.CounterVec
+	ClientReqFailures *prometheus.CounterVec
+	ClientExpectedRps *prometheus.GaugeVec
+	ClientReqTimeouts *prometheus.CounterVec
 
 	// Server metrics
 	ServerThreads          prometheus.Gauge
@@ -84,10 +83,6 @@ func New(logger *zap.SugaredLogger) *Metrics {
 			prometheus.GaugeOpts{Name: "client_expected_rps"},
 			[]string{"strategy"},
 		),
-		ClientAvgStageResponseTime: promauto.NewGaugeVec(
-			prometheus.GaugeOpts{Name: "client_avg_stage_response_time"},
-			[]string{"strategy"},
-		),
 		ClientReqTimeouts: promauto.NewCounterVec(
 			prometheus.CounterOpts{Name: "client_req_timeouts"},
 			[]string{"strategy"},
@@ -143,10 +138,9 @@ type StrategyMetrics struct {
 	RunDuration            prometheus.Gauge
 
 	// Client metrics
-	ClientReqFailures          prometheus.Counter
-	ClientExpectedRps          prometheus.Gauge
-	ClientAvgStageResponseTime prometheus.Gauge
-	ClientReqTimeouts          prometheus.Counter
+	ClientReqFailures prometheus.Counter
+	ClientExpectedRps prometheus.Gauge
+	ClientReqTimeouts prometheus.Counter
 
 	// Server metrics
 	ServerThreads          prometheus.Gauge
@@ -179,10 +173,9 @@ func (m *Metrics) WithStrategy(runID string, strategy string) *StrategyMetrics {
 		RunDuration:            m.RunDuration.With(runLabels),
 
 		// Client metrics
-		ClientReqFailures:          m.ClientReqFailures.With(labels),
-		ClientExpectedRps:          m.ClientExpectedRps.With(labels),
-		ClientAvgStageResponseTime: m.ClientAvgStageResponseTime.With(labels),
-		ClientReqTimeouts:          m.ClientReqTimeouts.With(labels),
+		ClientReqFailures: m.ClientReqFailures.With(labels),
+		ClientExpectedRps: m.ClientExpectedRps.With(labels),
+		ClientReqTimeouts: m.ClientReqTimeouts.With(labels),
 
 		// Server metrics
 		ServerThreads:          m.ServerThreads,

@@ -1,19 +1,18 @@
 client:
   stages:
-    - rps: 100
+    - duration: 20s
+      rps: 100
+      service_times:
+        - service_time: 50ms
+    - duration: 40s
+      service_times:
+        - service_time: 150ms
+    - duration: 20s
+      service_times:
+        - service_time: 50ms
 
 server:
   threads: 12
-  stages:
-    - service_times:
-        - service_time: 50ms
-      duration: 20s
-    - service_times:
-        - service_time: 150ms
-      duration: 40s
-    - service_times:
-        - service_time: 50ms
-      duration: 20s
 
 strategies:
   - name: client bulkhead

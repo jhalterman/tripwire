@@ -3,17 +3,8 @@
 
 client:
   stages:
-    - rps: 100
-      duration: 10s
-    - rps: 200
-      duration: 30s
-    - rps: 100
-      duration: 10s
-
-server:
-  threads: 8
-  stages:
-    - duration: 60s
+    - duration: 10s
+      rps: 100
       service_times:
         - service_time: 40ms
           weight: 70
@@ -23,6 +14,13 @@ server:
           weight: 7
         - service_time: 500ms
           weight: 3
+    - duration: 30s
+      rps: 200
+    - duration: 10s
+      rps: 100
+
+server:
+  threads: 8
 
 strategies:
   - name: client timeout
