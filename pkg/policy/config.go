@@ -67,6 +67,7 @@ type AdaptiveLimiterConfig struct {
 	CorrelationWindowSize  uint          `yaml:"correlation_window_size"`
 	VariationWindowSize    uint          `yaml:"variation_window_size"`
 	SmoothingFactor        float32       `yaml:"smoothing_factor"`
+	PID                    bool          `yaml:"pid"`
 }
 
 type AdaptiveLimiter2Config struct {

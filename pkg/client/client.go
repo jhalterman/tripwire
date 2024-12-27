@@ -34,6 +34,7 @@ type Config struct {
 type Workload struct {
 	Name         string               `yaml:"name"`
 	RPS          uint                 `yaml:"rps"`
+	Priority     uint                 `yaml:"priority"`
 	ServiceTimes WeightedServiceTimes `yaml:"service_times"`
 	WeightSum    int
 }

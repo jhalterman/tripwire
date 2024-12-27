@@ -4,13 +4,15 @@ client:
   workloads:
     - name: writes
       rps: 100
+      priority: 0
       service_times:
         - service_time: 50ms
 
-    - name: reads
-      rps: 20
-      service_times:
-        - service_time: 100ms
+#    - name: reads
+#      rps: 20
+#      priority: 1
+#      service_times:
+#        - service_time: 100ms
 
 server:
   threads: 12
@@ -25,9 +27,10 @@ strategies:
           long_window_size: 60
           min_limit: 2
           max_limit: 150
-          initial_limit: 20
-          max_limit_factor: 5
-          max_execution_time: 2s
+          initial_limit: 30
+          max_limit_factor: 10
+          #max_execution_time: 2s
           correlation_window_size: 20
           variation_window_size: 8
           smoothing_factor: .1
+          #pid: true

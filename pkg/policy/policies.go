@@ -85,7 +85,7 @@ func (c *Config) ToPolicy(metrics *metrics.StrategyMetrics, logger *zap.Logger) 
 	} else if c.AdaptiveLimiterConfig != nil {
 		pc := c.AdaptiveLimiterConfig
 		metrics.ConcurrencyLimit.Set(float64(pc.InitialLimit))
-		policy = adaptivelimiter.NewBuilder[*http.Response]().
+		builder := adaptivelimiter.NewBuilder[*http.Response]().
 			WithShortWindow(pc.ShortWindowMinDuration, pc.ShortWindowMaxDuration, pc.ShortWindowMinSamples).
 			WithLongWindow(pc.LongWindowSize).
 			WithLimits(pc.MinLimit, pc.MaxLimit, pc.InitialLimit).
@@ -97,8 +97,11 @@ func (c *Config) ToPolicy(metrics *metrics.StrategyMetrics, logger *zap.Logger) 
 			WithLogger(slog.New(zapslog.NewHandler(logger.Core()))).
 			OnLimitChanged(func(e adaptivelimiter.LimitChangedEvent) {
 				metrics.ConcurrencyLimit.Set(float64(e.NewLimit))
-			}).
-			Build()
+			})
+		if pc.PID {
+			builder.WithPID()
+		}
+		policy = builder.Build()
 	} else if c.AdaptiveLimiter2Config != nil {
 		pc := c.AdaptiveLimiter2Config
 		metrics.ConcurrencyLimit.Set(float64(pc.InitialLimit))
