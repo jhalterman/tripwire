@@ -110,14 +110,14 @@ func (w WeightedServiceTimes) String() string {
 
 type Client struct {
 	serverAddr string
-	config     *Config
 	metrics    *metrics.StrategyMetrics
 	logger     *zap.SugaredLogger
 	httpClient *http.Client
 	adaptive   bool
 
 	mtx           sync.RWMutex
-	cancelStageFn func()
+	config        *Config // Workloads is guarded by mtx
+	cancelStageFn func()  // Guarded by mtx
 }
 
 func NewClient(serverAddr net.Addr, config *Config, metrics *metrics.StrategyMetrics, executor failsafe.Executor[*http.Response], logger *zap.SugaredLogger) *Client {
@@ -250,12 +250,6 @@ func (c *Client) sendRequest(serviceTime time.Duration) {
 		}
 	}
 	c.metrics.ClientReqFailures.Inc()
-}
-
-func (c *Client) Workloads() []*Workload {
-	c.mtx.RLock()
-	defer c.mtx.RUnlock()
-	return c.config.Workloads
 }
 
 func (c *Client) UpdateWorkloads(workloads []*Workload) {
