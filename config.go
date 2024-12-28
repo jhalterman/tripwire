@@ -65,11 +65,18 @@ func configureWorkloads(workloads []*client.Workload) {
 	}
 }
 
-func NewConfigServer(clients []*client.Client, logger *zap.SugaredLogger) *util.Server {
+func NewConfigServer(clients []*client.Client, servers []*server.Server, logger *zap.SugaredLogger) *util.Server {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/client", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/client/workloads", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
 			updateClients(clients, w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+	mux.HandleFunc("/server", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			updateServers(servers, w, r)
 		} else {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
@@ -85,6 +92,16 @@ func updateClients(clients []*client.Client, w http.ResponseWriter, r *http.Requ
 			cl.UpdateWorkloads(workloads)
 		}
 		fmt.Fprintf(w, "Client config updated successfully\n")
+	}
+}
+
+func updateServers(servers []*server.Server, w http.ResponseWriter, r *http.Request) {
+	var config *server.Config
+	if parseConfigUpdate(w, r, &config) {
+		for _, srv := range servers {
+			srv.UpdateConfig(config)
+		}
+		fmt.Fprintf(w, "Server config updated successfully\n")
 	}
 }
 

@@ -90,7 +90,7 @@ client:
 Then you can adjust the workloads via a REST API:
 
 ```sh
-curl -X POST http://localhost:9095/client --data-binary @- <<'EOF'
+curl -X POST http://localhost:9095/client/workloads --data-binary @- <<'EOF'
 - name: writes
   rps: 100
   service_times:
@@ -104,6 +104,16 @@ EOF
 ```
 
 When using workloads, Tripwire will run through any specified strategies *in parallel*. This allows you to observe the impact of load changes on multiple strategies at the same time, which can be individually selected on the [Tripwire dashboard](#dashboard).
+
+## Server Threads
+
+To dynamically adjust server capacity, simulating a system degredation, you can use a REST API:
+
+```sh
+curl -X POST http://localhost:9095/server --data-binary @- <<'EOF'
+threads: 8
+EOF
+```
 
 ## Running
 

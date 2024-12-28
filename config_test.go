@@ -10,18 +10,24 @@ import (
 
 var yamlData = `
 client:
+  workloads:
+    - name: writes
+      rps: 100
+      service_times:
+        - service_time: 50ms
   stages:
-    - rps: 100
-      duration: 10s
-    - rps: 200
-      duration: 20s
-    - rps: 100
-      duration: 10s
+    - duration: 20s
+      rps: 100
+      service_times:
+        - service_time: 50ms
+    - duration: 40s
+      service_times:
+        - service_time: 150ms
+    - duration: 20s
+      service_times:
+        - service_time: 50ms
 
 server:
-  stages:
-    - service_times:
-      - service_time: 40ms
   threads: 8
 
 strategies:
@@ -54,15 +60,18 @@ func TestYAMLParsing(t *testing.T) {
 	err := yaml.Unmarshal([]byte(yamlData), &config)
 	assert.NoError(t, err, "YAML parsing should not return an error")
 
-	// Check Clients
+	// Check Client workloads
+	assert.Len(t, config.Client.Workloads, 1)
+	assert.Equal(t, "writes", config.Client.Workloads[0].Name)
+	assert.Equal(t, uint(100), config.Client.Workloads[0].RPS)
+	assert.Equal(t, 50*time.Millisecond, config.Client.Workloads[0].ServiceTimes[0].ServiceTime)
+
+	// Check client stages
 	assert.Len(t, config.Client.Stages, 3)
 	assert.Equal(t, uint(100), config.Client.Stages[0].RPS)
-	assert.Equal(t, 10*time.Second, config.Client.Stages[0].Duration)
+	assert.Equal(t, 20*time.Second, config.Client.Stages[0].Duration)
 
 	// Check Servers
-	assert.Len(t, config.Server.Stages, 1)
-	assert.Len(t, config.Server.Stages[0].ServiceTimes, 1)
-	assert.Equal(t, 40*time.Millisecond, config.Server.Stages[0].ServiceTimes[0].ServiceTime)
 	assert.Equal(t, uint(8), config.Server.Threads)
 
 	// Check Strategies

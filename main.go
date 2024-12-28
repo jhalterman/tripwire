@@ -58,13 +58,15 @@ func main() {
 		metrics.Start()
 		// Run workloads with strategies in parallel
 		var clients []*client.Client
+		var servers []*server.Server
 		for _, strategy := range config.Strategies {
 			logger = logger.With("strategy", strategy.Name)
-			aClient, _ := startClientAndServer(logger, config, strategy, metrics, &wg)
+			aClient, aServer := startClientAndServer(logger, config, strategy, metrics, &wg)
 			clients = append(clients, aClient)
+			servers = append(servers, aServer)
 		}
 
-		configServer := NewConfigServer(clients, logger)
+		configServer := NewConfigServer(clients, servers, logger)
 		configServer.Start()
 		wg.Wait()
 		configServer.Shutdown()
