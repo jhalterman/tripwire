@@ -111,8 +111,8 @@ func (c *Config) ToPolicy(metrics *metrics.StrategyMetrics, logger *zap.Logger) 
 			WithLimits(pc.MinLimit, pc.MaxLimit, pc.InitialLimit).
 			WithMaxLimitFactor(pc.MaxLimitFactor).
 			WithMaxExecutionTime(pc.MaxExecutionTime).
-			// WithCorrelationWindow(pc.CorrelationWindowSize).
-			// WithVariationWindow(pc.VariationWindowSize).
+			WithCovarianceWindow(pc.CovarianceWindowSize).
+			WithVariationWindow(pc.VariationWindowSize).
 			// WithSmoothing(pc.SmoothingFactor).
 			WithLogger(slog.New(zapslog.NewHandler(logger.Core()))).
 			OnLimitChanged(func(e adaptivelimiter2.LimitChangedEvent) {
@@ -128,8 +128,8 @@ func (c *Config) ToPolicy(metrics *metrics.StrategyMetrics, logger *zap.Logger) 
 			WithLimits(pc.MinLimit, pc.MaxLimit, pc.InitialLimit).
 			WithMaxLimitFactor(pc.MaxLimitFactor).
 			WithMaxExecutionTime(pc.MaxExecutionTime).
-			// WithCorrelationWindow(pc.CorrelationWindowSize).
-			// WithVariationWindow(pc.VariationWindowSize).
+			WithCorrelationWindow(pc.CorrelationWindowSize).
+			WithVariationWindow(pc.VariationWindowSize).
 			// WithSmoothing(pc.SmoothingFactor).
 			WithLogger(slog.New(zapslog.NewHandler(logger.Core()))).
 			OnLimitChanged(func(e vegaslimiter.LimitChangedEvent) {
@@ -151,6 +151,7 @@ func (c *Config) ToPolicy(metrics *metrics.StrategyMetrics, logger *zap.Logger) 
 }
 
 var adaptiveLimiterType = reflect.TypeOf((*adaptivelimiter.AdaptiveLimiter[*http.Response])(nil)).Elem()
+var adaptive2LimiterType = reflect.TypeOf((*adaptivelimiter2.AdaptiveLimiter2[*http.Response])(nil)).Elem()
 var vegasLimiterType = reflect.TypeOf((*vegaslimiter.VegasLimiter[*http.Response])(nil)).Elem()
 
 func (c Configs) ToExecutor(metrics *metrics.StrategyMetrics, logger *zap.Logger) (failsafe.Executor[*http.Response], time.Duration) {
@@ -172,6 +173,11 @@ func (c Configs) ToExecutor(metrics *metrics.StrategyMetrics, logger *zap.Logger
 	for _, policy := range policies {
 		if reflect.TypeOf(policy).Implements(adaptiveLimiterType) {
 			p := policy.(adaptivelimiter.AdaptiveLimiter[*http.Response])
+			executor = executor.OnDone(func(e failsafe.ExecutionDoneEvent[*http.Response]) {
+				metrics.QueuedRequests.Set(float64(p.Blocked()))
+			})
+		} else if reflect.TypeOf(policy).Implements(adaptive2LimiterType) {
+			p := policy.(adaptivelimiter2.AdaptiveLimiter2[*http.Response])
 			executor = executor.OnDone(func(e failsafe.ExecutionDoneEvent[*http.Response]) {
 				metrics.QueuedRequests.Set(float64(p.Blocked()))
 			})

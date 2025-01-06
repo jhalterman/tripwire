@@ -12,7 +12,7 @@ type Config struct {
 	*AdaptiveLimiterConfig  `yaml:"adaptivelimiter"`
 	*AdaptiveLimiter2Config `yaml:"adaptivelimiter2"`
 	*VegasConfig            `yaml:"vegaslimiter"`
-	*Vegas2Config           `yaml:"vegas2limiter"`
+	*Vegas2Config           `yaml:"vegaslimiter2"`
 	*GradientConfig         `yaml:"gradientlimiter"`
 	*Gradient2Config        `yaml:"gradient2limiter"`
 }
@@ -80,8 +80,8 @@ type AdaptiveLimiter2Config struct {
 	InitialLimit           uint          `yaml:"initial_limit"`
 	MaxLimitFactor         float32       `yaml:"max_limit_factor"`
 	MaxExecutionTime       time.Duration `yaml:"max_execution_time"`
-	// CorrelationWindowSize  uint          `yaml:"correlation_window_size"`
-	// VariationWindowSize    uint          `yaml:"variation_window_size"`
+	CovarianceWindowSize   uint          `yaml:"covariance_window_size"`
+	VariationWindowSize    uint          `yaml:"variation_window_size"`
 	// SmoothingFactor        float32       `yaml:"smoothing_factor"`
 }
 
@@ -104,6 +104,8 @@ type Vegas2Config struct {
 	InitialLimit           uint          `yaml:"initial_limit"`
 	MaxLimitFactor         float32       `yaml:"max_limit_factor"`
 	MaxExecutionTime       time.Duration `yaml:"max_execution_time"`
+	CorrelationWindowSize  uint          `yaml:"correlation_window_size"`
+	VariationWindowSize    uint          `yaml:"variation_window_size"`
 }
 
 // See https://pkg.go.dev/github.com/platinummonkey/go-concurrency-limits@v0.8.0/limit#GradientLimit for details on how the gradient limit works.

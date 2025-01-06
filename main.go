@@ -60,8 +60,8 @@ func main() {
 		var clients []*client.Client
 		var servers []*server.Server
 		for _, strategy := range config.Strategies {
-			logger = logger.With("strategy", strategy.Name)
-			aClient, aServer := startClientAndServer(logger, config, strategy, metrics, &wg)
+			strategyLogger := logger.With("strategy", strategy.Name)
+			aClient, aServer := startClientAndServer(strategyLogger, config, strategy, metrics, &wg)
 			clients = append(clients, aClient)
 			servers = append(servers, aServer)
 		}
