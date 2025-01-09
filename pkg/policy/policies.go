@@ -111,7 +111,7 @@ func (c *Config) ToPolicy(metrics *metrics.StrategyMetrics, logger *zap.Logger) 
 			WithLimits(pc.MinLimit, pc.MaxLimit, pc.InitialLimit).
 			WithMaxLimitFactor(pc.MaxLimitFactor).
 			WithMaxExecutionTime(pc.MaxExecutionTime).
-			WithCovarianceWindow(pc.CovarianceWindowSize).
+			WithCorrelationWindow(pc.CorrelationWindowSize).
 			WithVariationWindow(pc.VariationWindowSize).
 			// WithSmoothing(pc.SmoothingFactor).
 			WithLogger(slog.New(zapslog.NewHandler(logger.Core()))).

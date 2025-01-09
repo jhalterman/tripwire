@@ -80,7 +80,7 @@ type AdaptiveLimiter2Config struct {
 	InitialLimit           uint          `yaml:"initial_limit"`
 	MaxLimitFactor         float32       `yaml:"max_limit_factor"`
 	MaxExecutionTime       time.Duration `yaml:"max_execution_time"`
-	CovarianceWindowSize   uint          `yaml:"covariance_window_size"`
+	CorrelationWindowSize  uint          `yaml:"correlation_window_size"`
 	VariationWindowSize    uint          `yaml:"variation_window_size"`
 	// SmoothingFactor        float32       `yaml:"smoothing_factor"`
 }
