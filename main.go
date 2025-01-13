@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"sync"
 	"time"
 
+	"github.com/failsafe-go/failsafe-go/adaptivelimiter"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -80,12 +83,21 @@ func startClientAndServer(logger *zap.SugaredLogger, config *Config, strategy *S
 	strategyMetrics := metrics.WithStrategy(runID, strategy.Name)
 	strategyMetrics.RunDuration.Set(config.Client.MaxDuration.Seconds())
 
-	serverExecutor, _ := strategy.ServerPolicies.ToExecutor(strategyMetrics, logger.Desugar())
+	serverExecutor, _ := strategy.ServerPolicies.ToExecutor(strategyMetrics, nil, logger.Desugar())
 	aServer, addr := server.NewServer(config.Server, strategyMetrics, serverExecutor, logger)
 	wg.Add(1)
 	go aServer.Start(wg)
 
-	clientExecutor, minClientTimeout := strategy.ClientPolicies.ToExecutor(strategyMetrics, logger.Desugar())
+	var prioritizer adaptivelimiter.Prioritizer[*http.Response]
+	for _, workload := range config.Client.Workloads {
+		if workload.Priority != 0 {
+			prioritizer = adaptivelimiter.NewPrioritizer[*http.Response]()
+			prioritizer.ScheduleCalibrations(context.Background(), time.Second)
+			break
+		}
+	}
+
+	clientExecutor, minClientTimeout := strategy.ClientPolicies.ToExecutor(strategyMetrics, prioritizer, logger.Desugar())
 	aClient := client.NewClient(addr, config.Client, strategyMetrics, clientExecutor, logger)
 	strategyMetrics.MinTimeout.Set(minClientTimeout.Seconds())
 	wg.Add(1)
