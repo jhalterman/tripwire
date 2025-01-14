@@ -91,7 +91,7 @@ func startClientAndServer(logger *zap.SugaredLogger, config *Config, strategy *S
 
 	// Create a prioritizer if prioritizer configuration is provided
 	var prioritizer adaptivelimiter.Prioritizer
-	if config.Client.RejectionThreshold != 0 && config.Client.MaxExecutionTime != 0 {
+	if config.Client.RejectionThreshold != 0 && config.Client.MaxExecutionTime != 0 && len(config.Client.Workloads) > 1 {
 		prioritizer = adaptivelimiter.NewPrioritizerBuilder(config.Client.RejectionThreshold, config.Client.MaxExecutionTime).
 			WithLogger(slog.New(zapslog.NewHandler(logger.Desugar().Core()))).
 			Build()
