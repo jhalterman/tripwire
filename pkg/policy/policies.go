@@ -27,7 +27,7 @@ func (c *Config) UnmarshalYAML(value *yaml.Node) error {
 	return value.Decode(tmp)
 }
 
-func (c *Config) ToPolicy(metrics *metrics.StrategyMetrics, logger *zap.Logger) (failsafe.Policy[*http.Response], time.Duration) {
+func (c *Config) ToPolicy(metrics *metrics.StrategyMetrics, prioritizer adaptivelimiter.Prioritizer, logger *zap.Logger) (failsafe.Policy[*http.Response], time.Duration) {
 	var policy failsafe.Policy[*http.Response]
 	var timeOut time.Duration
 	slogger := slog.New(zapslog.NewHandler(logger.Core()))
@@ -83,20 +83,23 @@ func (c *Config) ToPolicy(metrics *metrics.StrategyMetrics, logger *zap.Logger) 
 	} else if c.AdaptiveLimiterConfig != nil {
 		pc := c.AdaptiveLimiterConfig
 		metrics.ConcurrencyLimit.Set(float64(pc.InitialLimit))
-		policy = adaptivelimiter.NewBuilder[*http.Response]().
+		builder := adaptivelimiter.NewBuilder[*http.Response]().
 			WithShortWindow(pc.ShortWindowMinDuration, pc.ShortWindowMaxDuration, pc.ShortWindowMinSamples).
 			WithLongWindow(pc.LongWindowSize).
 			WithLimits(pc.MinLimit, pc.MaxLimit, pc.InitialLimit).
 			WithMaxLimitFactor(pc.MaxLimitFactor).
-			WithMaxExecutionTime(pc.MaxExecutionTime).
+			WithBlocking(pc.RejectionThreshold, pc.MaxExecutionTime).
 			WithCorrelationWindow(pc.CorrelationWindowSize).
-			WithVariationWindow(pc.VariationWindowSize).
-			WithSmoothing(pc.SmoothingFactor).
+			WithStabilizationWindow(pc.StabilizationWindowSize).
 			WithLogger(slog.New(zapslog.NewHandler(logger.Core()))).
 			OnLimitChanged(func(e adaptivelimiter.LimitChangedEvent) {
 				metrics.ConcurrencyLimit.Set(float64(e.NewLimit))
-			}).
-			Build()
+			})
+		if prioritizer != nil {
+			policy = builder.WithPrioritizedRejection(prioritizer).Build()
+		} else {
+			policy = builder.Build()
+		}
 	} else if c.VegasConfig != nil {
 		metrics.ConcurrencyLimit.Set(float64(c.VegasConfig.InitialLimit))
 		policy = c.VegasConfig.Build(slogger, limitChangedListener)
@@ -111,11 +114,15 @@ func (c *Config) ToPolicy(metrics *metrics.StrategyMetrics, logger *zap.Logger) 
 	return policy, timeOut
 }
 
-func (c Configs) ToExecutor(metrics *metrics.StrategyMetrics, logger *zap.Logger) (failsafe.Executor[*http.Response], time.Duration) {
+var adaptiveLimiterType = reflect.TypeOf((*adaptivelimiter.AdaptiveLimiter[*http.Response])(nil)).Elem()
+var latencyLimiterType = reflect.TypeOf((*adaptivelimiter.LatencyLimiter[*http.Response])(nil)).Elem()
+var priorityLimiterType = reflect.TypeOf((*adaptivelimiter.PriorityLimiter[*http.Response])(nil)).Elem()
+
+func (c Configs) ToExecutor(metrics *metrics.StrategyMetrics, prioritizer adaptivelimiter.Prioritizer, logger *zap.Logger) (failsafe.Executor[*http.Response], time.Duration) {
 	var minTimeout time.Duration
 	var policies []failsafe.Policy[*http.Response]
 	for _, config := range c {
-		policy, policyTimeout := config.ToPolicy(metrics, logger)
+		policy, policyTimeout := config.ToPolicy(metrics, prioritizer, logger)
 		if policyTimeout != 0 {
 			if minTimeout == 0 {
 				minTimeout = policyTimeout
@@ -128,11 +135,22 @@ func (c Configs) ToExecutor(metrics *metrics.StrategyMetrics, logger *zap.Logger
 
 	executor := failsafe.NewExecutor(policies...)
 	for _, policy := range policies {
-		adaptiveLimiterType := reflect.TypeOf((*adaptivelimiter.AdaptiveLimiter[*http.Response])(nil)).Elem()
 		if reflect.TypeOf(policy).Implements(adaptiveLimiterType) {
 			p := policy.(adaptivelimiter.AdaptiveLimiter[*http.Response])
 			executor = executor.OnDone(func(e failsafe.ExecutionDoneEvent[*http.Response]) {
 				metrics.QueuedRequests.Set(float64(p.Blocked()))
+			})
+		} else if reflect.TypeOf(policy).Implements(latencyLimiterType) {
+			p := policy.(adaptivelimiter.LatencyLimiter[*http.Response])
+			executor = executor.OnDone(func(e failsafe.ExecutionDoneEvent[*http.Response]) {
+				metrics.QueuedRequests.Set(float64(p.Blocked()))
+				metrics.ThrottleProbability.Set(p.RejectionRate())
+			})
+		} else if reflect.TypeOf(policy).Implements(priorityLimiterType) {
+			p := policy.(adaptivelimiter.PriorityLimiter[*http.Response])
+			executor = executor.OnDone(func(e failsafe.ExecutionDoneEvent[*http.Response]) {
+				metrics.QueuedRequests.Set(float64(p.Blocked()))
+				metrics.ThrottleProbability.Set(prioritizer.RejectionRate())
 			})
 		}
 	}

@@ -1,10 +1,21 @@
 # Compares the Failsafe-go adaptive limiter to the go-concurrency-limits limiters.
 
 client:
+  rejection_threshold: 1s
+  max_execution_time: 2s
+
   workloads:
-    - rps: 100
+    - name: writes
+      rps: 100
+      priority: 3
       service_times:
         - service_time: 50ms
+
+    - name: reads
+      rps: 10
+      priority: 1
+      service_times:
+        - service_time: 100ms
 
 server:
   threads: 12
@@ -21,39 +32,57 @@ strategies:
           max_limit: 150
           initial_limit: 20
           max_limit_factor: 5
-          correlation_window_size: 20
-          variation_window_size: 8
-          smoothing_factor: .05
+          correlation_window_size: 50
+          stabilization_window_size: 10
 
-  - name: vegaslimiter
-    client_policies:
-      - vegaslimiter:
-          short_window_min_duration: 1s
-          short_window_max_duration: 1s
-          short_window_min_samples: 10
-          max_limit: 150
-          initial_limit: 20
-          smoothing_factor: .05
+  #  - name: adaptivelimiterold
+  #    client_policies:
+  #      - adaptivelimiterold:
+  #          short_window_min_duration: 1s
+  #          short_window_max_duration: 1s
+  #          short_window_min_samples: 10
+  #          long_window_size: 60
+  #          min_limit: 2
+  #          max_limit: 150
+  #          initial_limit: 20
+  #          max_limit_factor: 5
+  #          correlation_window_size: 50
+  #          variation_window_size: 8
+  #          smoothing_factor: .1
 
-  - name: gradientlimiter
-    client_policies:
-      - gradientlimiter:
-          short_window_min_duration: 1s
-          short_window_max_duration: 1s
-          short_window_min_samples: 10
-          min_limit: 2
-          max_limit: 150
-          initial_limit: 20
-          smoothing_factor: .05
+#  - name: vegaslimiter2
+#    client_policies:
+#      - vegaslimiter2:
+#          short_window_min_duration: 1s
+#          short_window_max_duration: 1s
+#          short_window_min_samples: 10
+#          min_limit: 2
+#          max_limit: 150
+#          initial_limit: 20
+#          max_limit_factor: 5
+#          correlation_window_size: 50
+#          variation_window_size: 8
 
-  - name: gradient2limiter
-    client_policies:
-      - gradient2limiter:
-          short_window_min_duration: 1s
-          short_window_max_duration: 1s
-          short_window_min_samples: 10
-          long_window_size: 60
-          min_limit: 2
-          max_limit: 150
-          initial_limit: 20
-          smoothing_factor: .05
+#
+#  - name: gradientlimiter
+#    client_policies:
+#      - gradientlimiter:
+#          short_window_min_duration: 1s
+#          short_window_max_duration: 1s
+#          short_window_min_samples: 10
+#          min_limit: 2
+#          max_limit: 150
+#          initial_limit: 20
+#          smoothing_factor: .05
+#
+#  - name: gradient2limiter
+#    client_policies:
+#      - gradient2limiter:
+#          short_window_min_duration: 1s
+#          short_window_max_duration: 1s
+#          short_window_min_samples: 10
+#          long_window_size: 60
+#          min_limit: 2
+#          max_limit: 150
+#          initial_limit: 20
+#          smoothing_factor: .05

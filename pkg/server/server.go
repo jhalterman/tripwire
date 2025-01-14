@@ -23,12 +23,13 @@ type Config struct {
 
 type Server struct {
 	listener net.Listener
-	config   *Config
 	metrics  *metrics.StrategyMetrics
 	logger   *zap.SugaredLogger
 	executor failsafe.Executor[*http.Response]
 
 	availableThreads chan struct{}
+	mtx              sync.RWMutex
+	config           *Config // Guarded by mtx
 }
 
 func NewServer(config *Config, metrics *metrics.StrategyMetrics, executor failsafe.Executor[*http.Response], logger *zap.SugaredLogger) (*Server, net.Addr) {
@@ -97,6 +98,28 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.metrics.ServerInflightRequests.Dec()
+}
+
+func (s *Server) UpdateConfig(config *Config) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	oldThreads := s.config.Threads
+	newThreads := config.Threads
+	s.config.Threads = config.Threads
+
+	if newThreads > oldThreads {
+		for i := 0; i < int(newThreads-oldThreads); i++ {
+			s.availableThreads <- struct{}{}
+		}
+	} else if newThreads < oldThreads {
+		for i := 0; i < int(oldThreads-newThreads); i++ {
+			<-s.availableThreads
+		}
+	}
+
+	s.metrics.ServerThreads.Set(float64(newThreads))
+	s.logger.Infow("Updated thread count", "oldThreads", oldThreads, "newThreads", newThreads)
 }
 
 func (s *Server) recordServiceTime(serviceTime time.Duration) {

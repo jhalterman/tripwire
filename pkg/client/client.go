@@ -26,15 +26,20 @@ import (
 )
 
 type Config struct {
+	// Prioritizer config
+	RejectionThreshold time.Duration `yaml:"rejection_threshold"`
+	MaxExecutionTime   time.Duration `yaml:"max_execution_time"`
+
 	Workloads   []*Workload `yaml:"workloads"` // workloads run in parallel
 	Stages      []*Stage    `yaml:"stages"`    // stages run in sequence
 	MaxDuration time.Duration
 }
 
 type Workload struct {
-	Name         string               `yaml:"name"`
-	RPS          uint                 `yaml:"rps"`
-	ServiceTimes WeightedServiceTimes `yaml:"service_times"`
+	Name         string                   `yaml:"name"`
+	RPS          uint                     `yaml:"rps"`
+	Priority     adaptivelimiter.Priority `yaml:"priority"`
+	ServiceTimes WeightedServiceTimes     `yaml:"service_times"`
 	WeightSum    int
 }
 
@@ -110,14 +115,14 @@ func (w WeightedServiceTimes) String() string {
 
 type Client struct {
 	serverAddr string
-	config     *Config
 	metrics    *metrics.StrategyMetrics
 	logger     *zap.SugaredLogger
 	httpClient *http.Client
 	adaptive   bool
 
-	mtx           sync.RWMutex
-	cancelStageFn func()
+	mtx             sync.RWMutex
+	config          *Config // Workloads is guarded by mtx
+	cancelWorkloads func()  // Guarded by mtx
 }
 
 func NewClient(serverAddr net.Addr, config *Config, metrics *metrics.StrategyMetrics, executor failsafe.Executor[*http.Response], logger *zap.SugaredLogger) *Client {
@@ -139,7 +144,7 @@ func (c *Client) Start(wg *sync.WaitGroup) {
 		for {
 			ctx, cancelFn := context.WithCancel(context.Background())
 			c.mtx.Lock()
-			c.cancelStageFn = cancelFn
+			c.cancelWorkloads = cancelFn
 			c.mtx.Unlock()
 			c.mtx.RLock()
 			for _, workload := range c.config.Workloads {
@@ -171,7 +176,7 @@ func (c *Client) performWorkload(ctx context.Context, workload *Workload) {
 			return
 		case <-ticker.C:
 			c.metrics.ClientExpectedRps.Set(float64(workload.RPS))
-			go c.sendRequest(workload.ServiceTimes.Random(workload.WeightSum))
+			go c.sendRequest(workload.ServiceTimes.Random(workload.WeightSum), workload.Priority)
 		}
 	}
 }
@@ -187,12 +192,12 @@ func (c *Client) performStage(stage *Stage) {
 			return
 		case <-ticker.C:
 			c.metrics.ClientExpectedRps.Set(float64(stage.RPS))
-			go c.sendRequest(stage.ServiceTimes.Random(stage.WeightSum))
+			go c.sendRequest(stage.ServiceTimes.Random(stage.WeightSum), 0)
 		}
 	}
 }
 
-func (c *Client) sendRequest(serviceTime time.Duration) {
+func (c *Client) sendRequest(serviceTime time.Duration, priority adaptivelimiter.Priority) {
 	start := time.Now()
 	request := server.Request{ServiceTime: serviceTime}
 	reqBody, err := yaml.Marshal(&request)
@@ -201,7 +206,8 @@ func (c *Client) sendRequest(serviceTime time.Duration) {
 		return
 	}
 
-	req, err := http.NewRequest("POST", c.serverAddr, bytes.NewBuffer(reqBody))
+	ctx := context.WithValue(context.Background(), adaptivelimiter.PriorityKey, priority)
+	req, err := http.NewRequestWithContext(ctx, "POST", c.serverAddr, bytes.NewBuffer(reqBody))
 	if err != nil {
 		c.logger.Errorw("error creating request", "error", err)
 		return
@@ -252,16 +258,10 @@ func (c *Client) sendRequest(serviceTime time.Duration) {
 	c.metrics.ClientReqFailures.Inc()
 }
 
-func (c *Client) Workloads() []*Workload {
-	c.mtx.RLock()
-	defer c.mtx.RUnlock()
-	return c.config.Workloads
-}
-
 func (c *Client) UpdateWorkloads(workloads []*Workload) {
 	c.mtx.Lock()
 	c.config.Workloads = workloads
-	c.cancelStageFn()
+	c.cancelWorkloads()
 	c.mtx.Unlock()
 }
 

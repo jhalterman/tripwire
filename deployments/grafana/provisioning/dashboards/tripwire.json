@@ -1463,12 +1463,12 @@
           "expr": "avg(throttle_probability{strategy=~\"$strategy\"})",
           "hide": false,
           "instant": false,
-          "legendFormat": "Throttle Probability",
+          "legendFormat": "Rejection Probability",
           "range": true,
           "refId": "B"
         }
       ],
-      "title": "Load Shedding",
+      "title": "Throttling",
       "type": "timeseries"
     }
   ],
@@ -1490,8 +1490,8 @@
       },
       {
         "current": {
-          "text": "adaptivelimiter",
-          "value": "adaptivelimiter"
+          "text": "All",
+          "value": "$__all"
         },
         "definition": "label_values(strategy)",
         "includeAll": true,
@@ -1510,7 +1510,7 @@
     ]
   },
   "time": {
-    "from": "now-5m",
+    "from": "now-3m",
     "to": "now"
   },
   "timepicker": {
