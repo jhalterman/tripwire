@@ -206,7 +206,7 @@
             "uid": "prometheus_uid"
           },
           "editorMode": "code",
-          "expr": "avg(irate(client_req_total{strategy=~\"$strategy\"}[$__rate_interval]))",
+          "expr": "sum(irate(client_req_total{strategy=~\"$strategy\"}[$__rate_interval]))",
           "hide": false,
           "interval": "1s",
           "legendFormat": "Actual",
@@ -1472,7 +1472,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "avg(irate(client_req_successes{strategy=~\"$strategy\"}[$__rate_interval]))",
+          "expr": "sum(irate(client_req_successes{strategy=~\"$strategy\"}[$__rate_interval]))",
           "hide": false,
           "instant": false,
           "interval": "1s",
@@ -1486,7 +1486,7 @@
             "uid": "prometheus_uid"
           },
           "editorMode": "code",
-          "expr": "avg(irate(client_req_rejected{strategy=~\"$strategy\"}[$__rate_interval]))",
+          "expr": "sum(irate(client_req_rejected{strategy=~\"$strategy\"}[$__rate_interval]))",
           "hide": false,
           "instant": false,
           "interval": "1s",
@@ -1500,7 +1500,7 @@
             "uid": "prometheus_uid"
           },
           "editorMode": "code",
-          "expr": "avg(irate(client_req_timeouts{strategy=~\"$strategy\"}[$__rate_interval]))",
+          "expr": "sum(irate(client_req_timeouts{strategy=~\"$strategy\"}[$__rate_interval]))",
           "hide": false,
           "interval": "1s",
           "legendFormat": "Timeout",
