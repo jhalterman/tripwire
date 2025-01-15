@@ -271,7 +271,7 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 4,
+        "w": 3,
         "x": 12,
         "y": 0
       },
@@ -321,6 +321,67 @@
             "mode": "absolute",
             "steps": [
               {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "req"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 15,
+        "y": 0
+      },
+      "id": 14,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.3.1",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "avg(server_inflight_requests{strategy=~\"$strategy\"})",
+          "legendFormat": "RPS",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Inflight",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus_uid"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
                 "color": "blue",
                 "value": null
               }
@@ -332,11 +393,11 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 4,
-        "x": 16,
+        "w": 3,
+        "x": 18,
         "y": 0
       },
-      "id": 14,
+      "id": 18,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
@@ -393,8 +454,8 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 4,
-        "x": 20,
+        "w": 3,
+        "x": 21,
         "y": 0
       },
       "id": 15,
@@ -1603,7 +1664,7 @@
     ]
   },
   "time": {
-    "from": "now-5m",
+    "from": "now-2m",
     "to": "now"
   },
   "timepicker": {
