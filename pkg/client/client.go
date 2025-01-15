@@ -115,7 +115,9 @@ func (w WeightedServiceTimes) String() string {
 
 type Client struct {
 	serverAddr string
-	metrics    *metrics.StrategyMetrics
+	runID      string
+	strategy   string
+	metrics    *metrics.Metrics
 	logger     *zap.SugaredLogger
 	httpClient *http.Client
 	adaptive   bool
@@ -125,20 +127,20 @@ type Client struct {
 	cancelWorkloads func()  // Guarded by mtx
 }
 
-func NewClient(serverAddr net.Addr, config *Config, metrics *metrics.StrategyMetrics, executor failsafe.Executor[*http.Response], logger *zap.SugaredLogger) *Client {
+func NewClient(serverAddr net.Addr, config *Config, runID string, strategy string, metrics *metrics.Metrics, executor failsafe.Executor[*http.Response], logger *zap.SugaredLogger) *Client {
 	return &Client{
+		runID:      runID,
+		strategy:   strategy,
 		serverAddr: fmt.Sprintf("http://localhost:%d", serverAddr.(*net.TCPAddr).Port),
 		config:     config,
 		metrics:    metrics,
-		logger:     logger.With("runID", metrics.RunID),
+		logger:     logger.With("runID", runID),
 		httpClient: &http.Client{Transport: failsafehttp.NewRoundTripperWithExecutor(http.DefaultTransport, executor)},
 	}
 }
 
 func (c *Client) Start(wg *sync.WaitGroup) {
 	defer wg.Done()
-
-	c.metrics.ClientReqTimeouts.Add(0)
 
 	if c.config.Workloads != nil {
 		for {
@@ -163,10 +165,13 @@ func (c *Client) Start(wg *sync.WaitGroup) {
 		c.logger.Infow("client stages finished")
 	}
 
-	c.metrics.ClientExpectedRps.Set(0)
+	// c.workloadMetrics.ClientExpectedRps.Set(0)
 }
 
 func (c *Client) performWorkload(ctx context.Context, workload *Workload) {
+	workloadMetrics := c.metrics.WithWorkload(c.runID, workload.Name, c.strategy)
+	workloadMetrics.ClientReqTimeouts.Add(0)
+
 	c.logger.Infow("starting client workload", "workload", workload)
 	ticker := time.NewTicker(time.Second / time.Duration(workload.RPS))
 	defer ticker.Stop()
@@ -175,13 +180,17 @@ func (c *Client) performWorkload(ctx context.Context, workload *Workload) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			c.metrics.ClientExpectedRps.Set(float64(workload.RPS))
-			go c.sendRequest(workload.ServiceTimes.Random(workload.WeightSum), workload.Priority)
+			workloadMetrics.ClientExpectedRps.Set(float64(workload.RPS))
+			go c.sendRequest(workloadMetrics, workload.ServiceTimes.Random(workload.WeightSum), workload.Priority)
 		}
 	}
+
 }
 
 func (c *Client) performStage(stage *Stage) {
+	workloadMetrics := c.metrics.WithWorkload(c.runID, "staged", c.strategy)
+	workloadMetrics.ClientReqTimeouts.Add(0)
+
 	c.logger.Infow("starting client stage", "stage", stage)
 	duration := time.After(stage.Duration)
 	ticker := time.NewTicker(time.Second / time.Duration(stage.RPS))
@@ -191,13 +200,13 @@ func (c *Client) performStage(stage *Stage) {
 		case <-duration:
 			return
 		case <-ticker.C:
-			c.metrics.ClientExpectedRps.Set(float64(stage.RPS))
-			go c.sendRequest(stage.ServiceTimes.Random(stage.WeightSum), 0)
+			workloadMetrics.ClientExpectedRps.Set(float64(stage.RPS))
+			go c.sendRequest(workloadMetrics, stage.ServiceTimes.Random(stage.WeightSum), 0)
 		}
 	}
 }
 
-func (c *Client) sendRequest(serviceTime time.Duration, priority adaptivelimiter.Priority) {
+func (c *Client) sendRequest(workloadMetrics *metrics.WorkloadMetrics, serviceTime time.Duration, priority adaptivelimiter.Priority) {
 	start := time.Now()
 	request := server.Request{ServiceTime: serviceTime}
 	reqBody, err := yaml.Marshal(&request)
@@ -214,7 +223,7 @@ func (c *Client) sendRequest(serviceTime time.Duration, priority adaptivelimiter
 	}
 	req.Close = true
 
-	c.metrics.ClientReqTotal.Inc()
+	workloadMetrics.ClientReqTotal.Inc()
 	resp, err := c.httpClient.Do(req)
 
 	// Handle errors
@@ -222,15 +231,15 @@ func (c *Client) sendRequest(serviceTime time.Duration, priority adaptivelimiter
 		// Handle rejections
 		if errors.Is(err, ratelimiter.ErrExceeded) || errors.Is(err, adaptivelimiter.ErrExceeded) || errors.Is(err, bulkhead.ErrFull) || errors.Is(err, circuitbreaker.ErrOpen) {
 			// Do not record response time for rejected requests
-			c.metrics.ClientReqRejected.Inc()
+			workloadMetrics.ClientReqRejected.Inc()
 		}
 		// Handle timeouts
 		var netErr net.Error
 		if errors.Is(err, timeout.ErrExceeded) || (errors.As(err, &netErr) && netErr.Timeout()) {
-			c.recordResponseTime(start)
-			c.metrics.ClientReqTimeouts.Inc()
+			c.recordResponseTime(workloadMetrics, start)
+			workloadMetrics.ClientReqTimeouts.Inc()
 		}
-		c.metrics.ClientReqFailures.Inc()
+		workloadMetrics.ClientReqFailures.Inc()
 		return
 	}
 
@@ -240,22 +249,22 @@ func (c *Client) sendRequest(serviceTime time.Duration, priority adaptivelimiter
 		// Handle responses
 		switch resp.StatusCode {
 		case http.StatusOK:
-			c.recordResponseTime(start)
-			c.metrics.ClientReqSuccesses.Inc()
+			c.recordResponseTime(workloadMetrics, start)
+			workloadMetrics.ClientReqSuccesses.Inc()
 			return
 		case http.StatusTooManyRequests:
 			// Do not record response time for rejected requests
-			c.metrics.ClientReqRejected.Inc()
+			workloadMetrics.ClientReqRejected.Inc()
 		case http.StatusInternalServerError:
 			// Do not record response time for internal server errors
 		case http.StatusRequestTimeout, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
-			c.recordResponseTime(start)
-			c.metrics.ClientReqTimeouts.Inc()
+			c.recordResponseTime(workloadMetrics, start)
+			workloadMetrics.ClientReqTimeouts.Inc()
 		default:
 			c.logger.Fatalw("unknown response code", "status", resp.StatusCode)
 		}
 	}
-	c.metrics.ClientReqFailures.Inc()
+	workloadMetrics.ClientReqFailures.Inc()
 }
 
 func (c *Client) UpdateWorkloads(workloads []*Workload) {
@@ -265,7 +274,7 @@ func (c *Client) UpdateWorkloads(workloads []*Workload) {
 	c.mtx.Unlock()
 }
 
-func (c *Client) recordResponseTime(start time.Time) {
+func (c *Client) recordResponseTime(workloadMetrics *metrics.WorkloadMetrics, start time.Time) {
 	responseTime := time.Since(start)
-	c.metrics.ClientReqResponseTimes.Observe(responseTime.Seconds())
+	workloadMetrics.ClientReqResponseTimes.Observe(responseTime.Seconds())
 }

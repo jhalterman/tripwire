@@ -99,7 +99,7 @@ func startClientAndServer(logger *zap.SugaredLogger, config *Config, strategy *S
 	}
 
 	clientExecutor, minClientTimeout := strategy.ClientPolicies.ToExecutor(strategyMetrics, prioritizer, logger.Desugar())
-	aClient := client.NewClient(addr, config.Client, strategyMetrics, clientExecutor, logger)
+	aClient := client.NewClient(addr, config.Client, runID, strategy.Name, metrics, clientExecutor, logger)
 	strategyMetrics.MinTimeout.Set(minClientTimeout.Seconds())
 	wg.Add(1)
 	go aClient.Start(wg)

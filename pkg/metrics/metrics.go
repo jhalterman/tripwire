@@ -48,17 +48,23 @@ func New(logger *zap.SugaredLogger) *Metrics {
 		Server: util.NewServer(mux, 8080, logger),
 
 		// Run metrics
+		RunDuration: promauto.NewGaugeVec(
+			prometheus.GaugeOpts{Name: "run_duration"},
+			[]string{"run_id", "strategy"},
+		),
+
+		// Client metrics
 		ClientReqTotal: promauto.NewCounterVec(
 			prometheus.CounterOpts{Name: "client_req_total"},
-			[]string{"run_id", "strategy"},
+			[]string{"run_id", "workload", "strategy"},
 		),
 		ClientReqSuccesses: promauto.NewCounterVec(
 			prometheus.CounterOpts{Name: "client_req_successes"},
-			[]string{"run_id", "strategy"},
+			[]string{"run_id", "workload", "strategy"},
 		),
 		ClientReqRejected: promauto.NewCounterVec(
 			prometheus.CounterOpts{Name: "client_req_rejected"},
-			[]string{"run_id", "strategy"},
+			[]string{"run_id", "workload", "strategy"},
 		),
 		ClientReqResponseTimes: promauto.NewHistogramVec(
 			prometheus.HistogramOpts{
@@ -67,25 +73,19 @@ func New(logger *zap.SugaredLogger) *Metrics {
 				NativeHistogramMaxBucketNumber:  100,
 				NativeHistogramMinResetDuration: 1 * time.Hour,
 			},
-			[]string{"run_id", "strategy"},
+			[]string{"run_id", "workload", "strategy"},
 		),
-		RunDuration: promauto.NewGaugeVec(
-			prometheus.GaugeOpts{Name: "run_duration"},
-			[]string{"run_id", "strategy"},
-		),
-
-		// Client metrics
 		ClientReqFailures: promauto.NewCounterVec(
 			prometheus.CounterOpts{Name: "client_req_failures"},
-			[]string{"strategy"},
+			[]string{"workload", "strategy"},
 		),
 		ClientExpectedRps: promauto.NewGaugeVec(
 			prometheus.GaugeOpts{Name: "client_expected_rps"},
-			[]string{"strategy"},
+			[]string{"workload", "strategy"},
 		),
 		ClientReqTimeouts: promauto.NewCounterVec(
 			prometheus.CounterOpts{Name: "client_req_timeouts"},
-			[]string{"strategy"},
+			[]string{"workload", "strategy"},
 		),
 
 		// Server metrics
@@ -125,22 +125,48 @@ func New(logger *zap.SugaredLogger) *Metrics {
 	}
 }
 
+type WorkloadMetrics struct {
+	RunID     string
+	Labels    prometheus.Labels
+	RunLabels prometheus.Labels
+
+	// Client metrics
+	ClientReqTotal         prometheus.Counter
+	ClientReqSuccesses     prometheus.Counter
+	ClientReqRejected      prometheus.Counter
+	ClientReqResponseTimes prometheus.Observer
+	ClientReqFailures      prometheus.Counter
+	ClientExpectedRps      prometheus.Gauge
+	ClientReqTimeouts      prometheus.Counter
+}
+
+func (m *Metrics) WithWorkload(runID string, workload string, strategy string) *WorkloadMetrics {
+	labels := prometheus.Labels{"workload": workload, "strategy": strategy}
+	runLabels := prometheus.Labels{"run_id": runID, "workload": workload, "strategy": strategy}
+
+	return &WorkloadMetrics{
+		RunID:     runID,
+		Labels:    labels,
+		RunLabels: runLabels,
+
+		// Client metrics
+		ClientReqTotal:         m.ClientReqTotal.With(runLabels),
+		ClientReqSuccesses:     m.ClientReqSuccesses.With(runLabels),
+		ClientReqRejected:      m.ClientReqRejected.With(runLabels),
+		ClientReqResponseTimes: m.ClientReqResponseTimes.With(runLabels),
+		ClientReqFailures:      m.ClientReqFailures.With(labels),
+		ClientExpectedRps:      m.ClientExpectedRps.With(labels),
+		ClientReqTimeouts:      m.ClientReqTimeouts.With(labels),
+	}
+}
+
 type StrategyMetrics struct {
 	RunID     string
 	Labels    prometheus.Labels
 	RunLabels prometheus.Labels
 
 	// Run metrics for things that must be distinguishable in the scenario result table
-	ClientReqTotal         prometheus.Counter
-	ClientReqSuccesses     prometheus.Counter
-	ClientReqRejected      prometheus.Counter
-	ClientReqResponseTimes prometheus.Observer
-	RunDuration            prometheus.Gauge
-
-	// Client metrics
-	ClientReqFailures prometheus.Counter
-	ClientExpectedRps prometheus.Gauge
-	ClientReqTimeouts prometheus.Counter
+	RunDuration prometheus.Gauge
 
 	// Server metrics
 	ServerThreads          prometheus.Gauge
@@ -166,16 +192,7 @@ func (m *Metrics) WithStrategy(runID string, strategy string) *StrategyMetrics {
 		RunLabels: runLabels,
 
 		// Run metrics
-		ClientReqTotal:         m.ClientReqTotal.With(runLabels),
-		ClientReqSuccesses:     m.ClientReqSuccesses.With(runLabels),
-		ClientReqRejected:      m.ClientReqRejected.With(runLabels),
-		ClientReqResponseTimes: m.ClientReqResponseTimes.With(runLabels),
-		RunDuration:            m.RunDuration.With(runLabels),
-
-		// Client metrics
-		ClientReqFailures: m.ClientReqFailures.With(labels),
-		ClientExpectedRps: m.ClientExpectedRps.With(labels),
-		ClientReqTimeouts: m.ClientReqTimeouts.With(labels),
+		RunDuration: m.RunDuration.With(runLabels),
 
 		// Server metrics
 		ServerThreads:          m.ServerThreads,
