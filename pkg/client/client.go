@@ -23,12 +23,11 @@ import (
 
 	"tripwire/pkg/metrics"
 	"tripwire/pkg/server"
+	"tripwire/pkg/util"
 )
 
 type Config struct {
-	// Prioritizer config
-	RejectionThreshold time.Duration `yaml:"rejection_threshold"`
-	MaxExecutionTime   time.Duration `yaml:"max_execution_time"`
+	Prioritize bool `yaml:"prioritize"`
 
 	Workloads   []*Workload `yaml:"workloads"` // workloads run in parallel
 	Stages      []*Stage    `yaml:"stages"`    // stages run in sequence
@@ -127,7 +126,12 @@ type Client struct {
 	cancelWorkloads func()  // Guarded by mtx
 }
 
-func NewClient(serverAddr net.Addr, config *Config, runID string, strategy string, metrics *metrics.Metrics, executor failsafe.Executor[*http.Response], logger *zap.SugaredLogger) *Client {
+func NewClient(serverAddr net.Addr, config *Config, runID string, strategy string, metrics *metrics.Metrics, workloadExecutors map[string]failsafe.Executor[*http.Response], logger *zap.SugaredLogger) *Client {
+	workloadRoundTrippers := make(map[string]http.RoundTripper)
+	for wl, exec := range workloadExecutors {
+		workloadRoundTrippers[wl] = failsafehttp.NewRoundTripperWithExecutor(http.DefaultTransport, exec)
+	}
+
 	return &Client{
 		runID:      runID,
 		strategy:   strategy,
@@ -135,7 +139,7 @@ func NewClient(serverAddr net.Addr, config *Config, runID string, strategy strin
 		config:     config,
 		metrics:    metrics,
 		logger:     logger.With("runID", runID),
-		httpClient: &http.Client{Transport: failsafehttp.NewRoundTripperWithExecutor(http.DefaultTransport, executor)},
+		httpClient: &http.Client{Transport: util.NewWorkloadRoundTripper(workloadRoundTrippers)},
 	}
 }
 
@@ -181,7 +185,7 @@ func (c *Client) performWorkload(ctx context.Context, workload *Workload) {
 			return
 		case <-ticker.C:
 			workloadMetrics.ClientExpectedRps.Set(float64(workload.RPS))
-			go c.sendRequest(workloadMetrics, workload.ServiceTimes.Random(workload.WeightSum), workload.Priority)
+			go c.sendRequest(workload.Name, workloadMetrics, workload.ServiceTimes.Random(workload.WeightSum), workload.Priority)
 		}
 	}
 
@@ -201,12 +205,12 @@ func (c *Client) performStage(stage *Stage) {
 			return
 		case <-ticker.C:
 			workloadMetrics.ClientExpectedRps.Set(float64(stage.RPS))
-			go c.sendRequest(workloadMetrics, stage.ServiceTimes.Random(stage.WeightSum), 0)
+			go c.sendRequest("staged", workloadMetrics, stage.ServiceTimes.Random(stage.WeightSum), 0)
 		}
 	}
 }
 
-func (c *Client) sendRequest(workloadMetrics *metrics.WorkloadMetrics, serviceTime time.Duration, priority adaptivelimiter.Priority) {
+func (c *Client) sendRequest(workload string, workloadMetrics *metrics.WorkloadMetrics, serviceTime time.Duration, priority adaptivelimiter.Priority) {
 	start := time.Now()
 	request := server.Request{ServiceTime: serviceTime}
 	reqBody, err := yaml.Marshal(&request)
@@ -221,10 +225,13 @@ func (c *Client) sendRequest(workloadMetrics *metrics.WorkloadMetrics, serviceTi
 		c.logger.Errorw("error creating request", "error", err)
 		return
 	}
+	req.Header.Set(util.WorkloadHeaderId, workload)
 	req.Close = true
 
 	workloadMetrics.ClientReqTotal.Inc()
+	workloadMetrics.ClientInflightRequests.Inc()
 	resp, err := c.httpClient.Do(req)
+	workloadMetrics.ClientInflightRequests.Dec()
 
 	// Handle errors
 	if err != nil {

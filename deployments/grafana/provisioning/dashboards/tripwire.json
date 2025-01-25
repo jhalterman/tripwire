@@ -206,26 +206,12 @@
             "uid": "prometheus_uid"
           },
           "editorMode": "code",
-          "expr": "sum(irate(client_req_total{strategy=~\"$strategy\"}[$__rate_interval]))",
+          "expr": "sum(irate(client_req_total{strategy=\"$strategy\", workload=\"$workload\"}[$__rate_interval]))",
           "hide": false,
           "interval": "1s",
           "legendFormat": "Actual",
           "range": true,
           "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus_uid"
-          },
-          "editorMode": "code",
-          "expr": "server_threads / client_avg_stage_response_time{strategy=~\"adaptivelimiter\"} # Use Little's law to approximate RPS capacity",
-          "hide": true,
-          "instant": false,
-          "interval": "1s",
-          "legendFormat": "Capacity",
-          "range": true,
-          "refId": "C"
         },
         {
           "datasource": {
@@ -297,7 +283,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "avg(irate(client_req_total{strategy=~\"$strategy\"}[$__rate_interval]))",
+          "expr": "sum(irate(client_req_total{strategy=~\"$strategy\"}[$__rate_interval]))",
           "legendFormat": "RPS",
           "range": true,
           "refId": "A"
@@ -358,13 +344,13 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "avg(server_inflight_requests{strategy=~\"$strategy\"})",
+          "expr": "sum(server_inflight_requests{ strategy=\"$strategy\"})",
           "legendFormat": "RPS",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Inflight",
+      "title": "Total Inflight",
       "type": "stat"
     },
     {
@@ -419,13 +405,13 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "avg(concurrency_limit{strategy=~\"$strategy\"} > 0)",
+          "expr": "sum(concurrency_limit{ strategy=~\"$strategy\"} > 0)",
           "legendFormat": "RPS",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Concurrency Limit",
+      "title": "Total Concurrency Limit",
       "type": "stat"
     },
     {
@@ -480,7 +466,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "avg(irate(client_req_successes{strategy=~\"$strategy\"}[$__rate_interval]))",
+          "expr": "sum(irate(client_req_successes{strategy=~\"$strategy\"}[$__rate_interval]))",
           "legendFormat": "RPS",
           "range": true,
           "refId": "A"
@@ -579,7 +565,7 @@
             "uid": "prometheus_uid"
           },
           "editorMode": "code",
-          "expr": "avg(queued_requests{strategy=~\"$strategy\"})",
+          "expr": "queued_requests{strategy=\"$strategy\", workload=\"$workload\"}",
           "instant": false,
           "legendFormat": "Blocked Requests",
           "range": true,
@@ -673,7 +659,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "avg by(workload)(\n    irate(client_req_successes{strategy=~\"$strategy\"}[$__rate_interval])\n    / irate(client_req_total{strategy=~\"$strategy\"}[$__rate_interval])\n) * 100",
+          "expr": "avg by(workload)(\n    irate(client_req_successes{strategy=\"$strategy\"}[$__rate_interval])\n    / irate(client_req_total{ strategy=\"$strategy\"}[$__rate_interval])\n) * 100",
           "legendFormat": "{{label_name}}",
           "range": true,
           "refId": "A"
@@ -829,7 +815,7 @@
             "uid": "prometheus_uid"
           },
           "editorMode": "code",
-          "expr": "avg(server_inflight_requests{strategy=~\"$strategy\"})",
+          "expr": "avg(server_inflight_requests{strategy=\"$strategy\", workload=\"$workload\"})",
           "format": "time_series",
           "interval": "1s",
           "legendFormat": "Inflight",
@@ -854,7 +840,7 @@
             "uid": "prometheus_uid"
           },
           "editorMode": "code",
-          "expr": "avg(concurrency_limit{strategy=~\"$strategy\"} > 0)",
+          "expr": "avg(concurrency_limit{strategy=\"$strategy\", workload=\"$workload\"} > 0)",
           "hide": false,
           "instant": false,
           "legendFormat": "Limit",
@@ -1224,7 +1210,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "avg(histogram_sum(rate(client_req_response_times{strategy=~\"$strategy\"}[$__rate_interval]))) \n/ \navg(histogram_count(rate(client_req_response_times{strategy=~\"$strategy\"}[$__rate_interval]))) # Sum to get rid of run_id label",
+          "expr": "histogram_sum(rate(client_req_response_times{workload=\"$workload\", strategy=\"$strategy\"}[$__rate_interval]))\n/ \nhistogram_count(rate(client_req_response_times{workload=\"$workload\", strategy=\"$strategy\"}[$__rate_interval])) # Sum to get rid of run_id label",
           "hide": false,
           "instant": false,
           "interval": "1s",
@@ -1239,7 +1225,7 @@
             "uid": "prometheus_uid"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(.5, sum(rate(client_req_response_times{strategy=~\"$strategy\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(.5, sum(rate(client_req_response_times{workload=\"$workload\", strategy=\"$strategy\"}[$__rate_interval])))",
           "hide": false,
           "interval": "1s",
           "legendFormat": "p50",
@@ -1252,7 +1238,7 @@
             "uid": "prometheus_uid"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(.9, sum(rate(client_req_response_times{strategy=~\"$strategy\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(.9, sum(rate(client_req_response_times{workload=\"$workload\", strategy=\"$strategy\"}[$__rate_interval])))",
           "hide": false,
           "instant": false,
           "interval": "1s",
@@ -1266,7 +1252,7 @@
             "uid": "prometheus_uid"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(.99, sum(rate(client_req_response_times{strategy=~\"$strategy\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(.99, sum(rate(client_req_response_times{workload=\"$workload\", strategy=\"$strategy\"}[$__rate_interval])))",
           "hide": false,
           "instant": false,
           "interval": "1s",
@@ -1472,7 +1458,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(irate(client_req_successes{strategy=~\"$strategy\"}[$__rate_interval]))",
+          "expr": "sum(irate(client_req_successes{workload=\"$workload\", strategy=\"$strategy\"}[$__rate_interval]))",
           "hide": false,
           "instant": false,
           "interval": "1s",
@@ -1486,7 +1472,7 @@
             "uid": "prometheus_uid"
           },
           "editorMode": "code",
-          "expr": "sum(irate(client_req_rejected{strategy=~\"$strategy\"}[$__rate_interval]))",
+          "expr": "sum(irate(client_req_rejected{workload=\"$workload\", strategy=\"$strategy\"}[$__rate_interval]))",
           "hide": false,
           "instant": false,
           "interval": "1s",
@@ -1500,25 +1486,12 @@
             "uid": "prometheus_uid"
           },
           "editorMode": "code",
-          "expr": "sum(irate(client_req_timeouts{strategy=~\"$strategy\"}[$__rate_interval]))",
+          "expr": "sum(irate(client_req_timeouts{workload=\"$workload\", strategy=\"$strategy\"}[$__rate_interval]))",
           "hide": false,
           "interval": "1s",
           "legendFormat": "Timeout",
           "range": true,
           "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus_uid"
-          },
-          "editorMode": "code",
-          "expr": "server_threads / client_avg_stage_response_time{strategy=~\"$strategy\"} # Use Little's law to approximate RPS capacity",
-          "hide": true,
-          "interval": "1s",
-          "legendFormat": "Capacity",
-          "range": true,
-          "refId": "D"
         }
       ],
       "title": "Responses",
@@ -1614,7 +1587,7 @@
             "uid": "prometheus_uid"
           },
           "editorMode": "code",
-          "expr": "avg(throttle_probability{strategy=~\"$strategy\"})",
+          "expr": "throttle_probability{workload=\"$workload\", strategy=\"$strategy\"}",
           "hide": false,
           "instant": false,
           "legendFormat": "Rejection Probability",
@@ -1633,19 +1606,9 @@
   "templating": {
     "list": [
       {
-        "baseFilters": [],
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus_uid"
-        },
-        "filters": [],
-        "name": "Filters",
-        "type": "adhoc"
-      },
-      {
         "current": {
-          "text": "All",
-          "value": "$__all"
+          "text": "adaptivelimiter",
+          "value": "adaptivelimiter"
         },
         "definition": "label_values(strategy)",
         "includeAll": true,
@@ -1655,6 +1618,25 @@
         "query": {
           "qryType": 1,
           "query": "label_values(strategy)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "writes",
+          "value": "writes"
+        },
+        "definition": "label_values(workload)",
+        "includeAll": true,
+        "label": "Workload",
+        "name": "workload",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(workload)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
@@ -1685,6 +1667,6 @@
   "timezone": "",
   "title": "Tripwire",
   "uid": "fCAGJVqSz",
-  "version": 18,
+  "version": 31,
   "weekStart": ""
 }

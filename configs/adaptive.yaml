@@ -1,18 +1,11 @@
-# Static test (must be adjusted via the REST API) of the adaptive limiter.
+# Compares the Failsafe-go adaptive limiter to the go-concurrency-limits limiters.
 
 client:
   workloads:
     - name: writes
       rps: 100
-      priority: 0
       service_times:
         - service_time: 50ms
-
-#    - name: reads
-#      rps: 20
-#      priority: 1
-#      service_times:
-#        - service_time: 100ms
 
 server:
   threads: 12
@@ -23,14 +16,12 @@ strategies:
       - adaptivelimiter:
           short_window_min_duration: 1s
           short_window_max_duration: 1s
-          short_window_min_samples: 1
+          short_window_min_samples: 10
           long_window_size: 60
           min_limit: 2
           max_limit: 150
-          initial_limit: 30
-          max_limit_factor: 10
-          #max_execution_time: 2s
-          correlation_window_size: 20
-          variation_window_size: 8
-          smoothing_factor: .1
-          #pid: true
+          initial_limit: 20
+          max_limit_factor: 5
+          correlation_window_size: 50
+          stabilization_window_size: 50
+          max_blocking_factor: 2

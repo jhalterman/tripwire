@@ -14,34 +14,42 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"tripwire/pkg/metrics"
+	"tripwire/pkg/util"
 )
 
 type Config struct {
+	Prioritize bool `yaml:"prioritize"`
+
 	Threads  uint `yaml:"threads"`
 	Duration time.Duration
 }
 
 type Server struct {
-	listener net.Listener
-	metrics  *metrics.StrategyMetrics
-	logger   *zap.SugaredLogger
-	executor failsafe.Executor[*http.Response]
+	listener         net.Listener
+	strategy         string
+	metrics          *metrics.Metrics
+	strategyMetrics  *metrics.StrategyMetrics
+	logger           *zap.SugaredLogger
+	executor         failsafe.Executor[*http.Response]
+	availableThreads chan struct {
+	}
 
-	availableThreads chan struct{}
-	mtx              sync.RWMutex
-	config           *Config // Guarded by mtx
+	mtx    sync.RWMutex
+	config *Config // Guarded by mtx
 }
 
-func NewServer(config *Config, metrics *metrics.StrategyMetrics, executor failsafe.Executor[*http.Response], logger *zap.SugaredLogger) (*Server, net.Addr) {
+func NewServer(config *Config, strategy string, metrics *metrics.Metrics, strategyMetrics *metrics.StrategyMetrics, executor failsafe.Executor[*http.Response], logger *zap.SugaredLogger) (*Server, net.Addr) {
 	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
 		logger.Fatalw("failed to listen", "err", err)
 	}
 	return &Server{
 		listener:         listener,
+		strategy:         strategy,
 		config:           config,
 		metrics:          metrics,
-		logger:           logger.With("runID", metrics.RunID),
+		strategyMetrics:  strategyMetrics,
+		logger:           logger.With("runID", strategyMetrics.RunID),
 		executor:         executor,
 		availableThreads: make(chan struct{}, config.Threads),
 	}, listener.Addr()
@@ -51,14 +59,18 @@ func (s *Server) Start(wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	// Prepare workers
-	s.metrics.ServerThreads.Set(float64(s.config.Threads))
+	s.strategyMetrics.ServerThreads.Set(float64(s.config.Threads))
 	for i := 0; i < int(s.config.Threads); i++ {
 		s.availableThreads <- struct{}{}
 	}
 
 	// Listen for requests
+	var handler http.Handler = http.HandlerFunc(s.handleRequest)
+	if s.executor != nil {
+		handler = failsafehttp.NewHandlerWithExecutor(handler, s.executor)
+	}
 	server := &http.Server{
-		Handler:     failsafehttp.NewHandlerWithExecutor(http.HandlerFunc(s.handleRequest), s.executor),
+		Handler:     handler,
 		ReadTimeout: 10 * time.Second,
 	}
 	go func() {
@@ -70,7 +82,7 @@ func (s *Server) Start(wg *sync.WaitGroup) {
 	time.Sleep(s.config.Duration)
 	s.logger.Infow("server stopping")
 	_ = server.Shutdown(context.Background())
-	s.metrics.ServerServiceTime.Set(0)
+	s.strategyMetrics.ServerServiceTime.Set(0)
 }
 
 type Request struct {
@@ -85,7 +97,8 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.recordServiceTime(req.ServiceTime)
-	s.metrics.ServerInflightRequests.Inc()
+	inflightMetric := s.metrics.WithServerInflight(r.Header.Get(util.WorkloadHeaderId), s.strategy)
+	inflightMetric.Inc()
 
 	// Simulate servicing a request, performing work in increments to simulate context switching between workers
 	workIncrement := req.ServiceTime / 100
@@ -97,7 +110,7 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
 		workCompleted += workIncrement
 	}
 
-	s.metrics.ServerInflightRequests.Dec()
+	inflightMetric.Dec()
 }
 
 func (s *Server) UpdateConfig(config *Config) {
@@ -118,10 +131,10 @@ func (s *Server) UpdateConfig(config *Config) {
 		}
 	}
 
-	s.metrics.ServerThreads.Set(float64(newThreads))
+	s.strategyMetrics.ServerThreads.Set(float64(newThreads))
 	s.logger.Infow("Updated thread count", "oldThreads", oldThreads, "newThreads", newThreads)
 }
 
 func (s *Server) recordServiceTime(serviceTime time.Duration) {
-	s.metrics.ServerServiceTime.Set(serviceTime.Seconds())
+	s.strategyMetrics.ServerServiceTime.Set(serviceTime.Seconds())
 }

@@ -41,3 +41,21 @@ func (s *Server) Shutdown() {
 		s.logger.Fatal(err)
 	}
 }
+
+const WorkloadHeaderId = "X-Workload"
+
+type WorkloadRoundTripper struct {
+	workloadRoundTrippers map[string]http.RoundTripper
+}
+
+func NewWorkloadRoundTripper(workloadRoundTrippers map[string]http.RoundTripper) http.RoundTripper {
+	return &WorkloadRoundTripper{workloadRoundTrippers}
+}
+
+func (r *WorkloadRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
+	workload := request.Header.Get(WorkloadHeaderId)
+	if rt, ok := r.workloadRoundTrippers[workload]; ok {
+		return rt.RoundTrip(request)
+	}
+	return nil, nil
+}

@@ -3,14 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/failsafe-go/failsafe-go/adaptivelimiter"
 	"go.uber.org/zap"
-	"go.uber.org/zap/exp/zapslog"
 	"go.uber.org/zap/zapcore"
 
 	"tripwire/pkg/client"
@@ -84,22 +82,22 @@ func startClientAndServer(logger *zap.SugaredLogger, config *Config, strategy *S
 	strategyMetrics := metrics.WithStrategy(runID, strategy.Name)
 	strategyMetrics.RunDuration.Set(config.Client.MaxDuration.Seconds())
 
-	serverExecutor, _ := strategy.ServerPolicies.ToExecutor(strategyMetrics, nil, logger.Desugar())
-	aServer, addr := server.NewServer(config.Server, strategyMetrics, serverExecutor, logger)
+	// serverExecutors, _ := strategy.ServerPolicies.ToExecutors(strategy.Name, config.Client.Workloads, metrics, strategyMetrics, nil, logger.Desugar())
+	aServer, addr := server.NewServer(config.Server, strategy.Name, metrics, strategyMetrics, nil, logger)
 	wg.Add(1)
 	go aServer.Start(wg)
 
-	// Create a prioritizer if prioritizer configuration is provided
+	// Create a prioritizer if configuration is provided
 	var prioritizer adaptivelimiter.Prioritizer
-	if config.Client.RejectionThreshold != 0 && config.Client.MaxExecutionTime != 0 && len(config.Client.Workloads) > 1 {
-		prioritizer = adaptivelimiter.NewPrioritizerBuilder(config.Client.RejectionThreshold, config.Client.MaxExecutionTime).
-			WithLogger(slog.New(zapslog.NewHandler(logger.Desugar().Core()))).
+	if config.Client.Prioritize && len(config.Client.Workloads) > 1 {
+		prioritizer = adaptivelimiter.NewPrioritizerBuilder(). // time.Second, 2*time.Second
+			// WithLogger(slog.New(zapslog.NewHandler(logger.Desugar().Core()))).
 			Build()
-		prioritizer.ScheduleCalibrations(context.Background(), time.Second)
+		prioritizer.ScheduleCalibrations(context.Background(), 500*time.Millisecond)
 	}
 
-	clientExecutor, minClientTimeout := strategy.ClientPolicies.ToExecutor(strategyMetrics, prioritizer, logger.Desugar())
-	aClient := client.NewClient(addr, config.Client, runID, strategy.Name, metrics, clientExecutor, logger)
+	clientExecutors, minClientTimeout := strategy.ClientPolicies.ToExecutors(strategy.Name, config.Client.Workloads, metrics, strategyMetrics, prioritizer, logger.Desugar())
+	aClient := client.NewClient(addr, config.Client, runID, strategy.Name, metrics, clientExecutors, logger)
 	strategyMetrics.MinTimeout.Set(minClientTimeout.Seconds())
 	wg.Add(1)
 	go aClient.Start(wg)
