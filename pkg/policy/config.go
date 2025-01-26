@@ -63,9 +63,8 @@ type AdaptiveLimiterConfig struct {
 	MaxLimitFactor          float32       `yaml:"max_limit_factor"`
 	CorrelationWindowSize   uint          `yaml:"correlation_window_size"`
 	StabilizationWindowSize uint          `yaml:"stabilization_window_size"`
-
-	// Blocking
-	MaxBlockingFactor float32 `yaml:"max_blocking_factor"`
+	InitialRejectionFactor  float32       `yaml:"initial_rejection_factor"`
+	MaxRejectionFactor      float32       `yaml:"max_rejection_factor"`
 }
 
 // See https://pkg.go.dev/github.com/platinummonkey/go-concurrency-limits@v0.8.0/limit#VegasLimit for details on how the Vegas limit works.

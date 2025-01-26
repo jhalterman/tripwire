@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/failsafe-go/failsafe-go/adaptivelimiter"
 	"go.uber.org/zap"
+	"go.uber.org/zap/exp/zapslog"
 	"go.uber.org/zap/zapcore"
 
 	"tripwire/pkg/client"
@@ -91,7 +93,7 @@ func startClientAndServer(logger *zap.SugaredLogger, config *Config, strategy *S
 	var prioritizer adaptivelimiter.Prioritizer
 	if config.Client.Prioritize && len(config.Client.Workloads) > 1 {
 		prioritizer = adaptivelimiter.NewPrioritizerBuilder(). // time.Second, 2*time.Second
-			// WithLogger(slog.New(zapslog.NewHandler(logger.Desugar().Core()))).
+			WithLogger(slog.New(zapslog.NewHandler(logger.Desugar().Core()))).
 			Build()
 		prioritizer.ScheduleCalibrations(context.Background(), 500*time.Millisecond)
 	}

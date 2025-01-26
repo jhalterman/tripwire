@@ -80,7 +80,7 @@ func (c *Config) ToPolicy(metrics *metrics.Metrics, strategyMetrics *metrics.Str
 	} else if c.AdaptiveLimiterConfig != nil {
 		pc := c.AdaptiveLimiterConfig
 		metrics.WithConcurrencyLimit(workload, strategy).Set(float64(pc.InitialLimit))
-		log := slog.New(zapslog.NewHandler(logger.Core()))
+		// log := slog.New(zapslog.NewHandler(logger.Core()))
 		builder := adaptivelimiter.NewBuilder[*http.Response]().
 			WithShortWindow(pc.ShortWindowMinDuration, pc.ShortWindowMaxDuration, pc.ShortWindowMinSamples).
 			WithLongWindow(pc.LongWindowSize).
@@ -88,13 +88,14 @@ func (c *Config) ToPolicy(metrics *metrics.Metrics, strategyMetrics *metrics.Str
 			WithMaxLimitFactor(pc.MaxLimitFactor).
 			WithCorrelationWindow(pc.CorrelationWindowSize).
 			WithStabilizationWindow(pc.StabilizationWindowSize).
-			WithMaxBlockingFactor(pc.MaxBlockingFactor).
-			WithLogger(log).
+			WithRejectionFactors(pc.InitialRejectionFactor, pc.MaxRejectionFactor).
+			//WithLogger(log).
 			OnLimitChanged(func(e adaptivelimiter.LimitChangedEvent) {
 				metrics.WithConcurrencyLimit(workload, strategy).Set(float64(e.NewLimit))
 			})
 		if prioritizer != nil {
-			return builder.WithLogger(log.With("workload", workload)).
+			return builder.
+				// WithLogger(log.With("workload", workload)).
 				BuildPrioritized(prioritizer)
 		} else {
 			return builder.Build()

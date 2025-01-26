@@ -24,7 +24,8 @@ strategies:
           max_limit_factor: 5
           correlation_window_size: 10
           stabilization_window_size: 10
-          max_blocking_factor: 2
+          initial_rejection_factor: 2
+          max_rejection_factor: 3
 
   #  - name: adaptivelimiterold
   #    client_policies:
