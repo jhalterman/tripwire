@@ -10,6 +10,7 @@ client:
 server:
   threads: 12
 
+# this one is meant to oscillate faster than adaptive 1
 strategies:
   - name: adaptivelimiter
     client_policies:
@@ -23,7 +24,6 @@ strategies:
           initial_limit: 20
           max_limit_factor: 5
           correlation_window_size: 10
-          stabilization_window_size: 10
           initial_rejection_factor: 2
           max_rejection_factor: 3
 

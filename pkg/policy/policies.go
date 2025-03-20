@@ -11,6 +11,7 @@ import (
 	"github.com/failsafe-go/failsafe-go/circuitbreaker"
 	"github.com/failsafe-go/failsafe-go/ratelimiter"
 	"github.com/failsafe-go/failsafe-go/timeout"
+	"github.com/failsafe-go/failsafe-go/vegaslimiter"
 	"go.uber.org/zap"
 	"go.uber.org/zap/exp/zapslog"
 	"gopkg.in/yaml.v3"
@@ -80,26 +81,41 @@ func (c *Config) ToPolicy(metrics *metrics.Metrics, strategyMetrics *metrics.Str
 	} else if c.AdaptiveLimiterConfig != nil {
 		pc := c.AdaptiveLimiterConfig
 		metrics.WithConcurrencyLimit(workload, strategy).Set(float64(pc.InitialLimit))
-		// log := slog.New(zapslog.NewHandler(logger.Core()))
+		log := slog.New(zapslog.NewHandler(logger.Core()))
 		builder := adaptivelimiter.NewBuilder[*http.Response]().
 			WithShortWindow(pc.ShortWindowMinDuration, pc.ShortWindowMaxDuration, pc.ShortWindowMinSamples).
 			WithLongWindow(pc.LongWindowSize).
 			WithLimits(pc.MinLimit, pc.MaxLimit, pc.InitialLimit).
 			WithMaxLimitFactor(pc.MaxLimitFactor).
 			WithCorrelationWindow(pc.CorrelationWindowSize).
-			WithStabilizationWindow(pc.StabilizationWindowSize).
 			WithRejectionFactors(pc.InitialRejectionFactor, pc.MaxRejectionFactor).
-			//WithLogger(log).
+			WithLogger(log).
 			OnLimitChanged(func(e adaptivelimiter.LimitChangedEvent) {
 				metrics.WithConcurrencyLimit(workload, strategy).Set(float64(e.NewLimit))
 			})
 		if prioritizer != nil {
-			return builder.
-				// WithLogger(log.With("workload", workload)).
-				BuildPrioritized(prioritizer)
+			if workload == "writes" {
+				builder.WithLogger(log.With("workload", workload))
+			}
+			return builder.BuildPrioritized(prioritizer)
 		} else {
 			return builder.Build()
 		}
+	} else if c.VegasLimiter2Config != nil {
+		pc := c.VegasLimiter2Config
+		log := slog.New(zapslog.NewHandler(logger.Core()))
+		metrics.WithConcurrencyLimit(workload, strategy).Set(float64(pc.InitialLimit))
+		return vegaslimiter.NewBuilder[*http.Response]().
+			WithShortWindow(pc.ShortWindowMinDuration, pc.ShortWindowMaxDuration, pc.ShortWindowMinSamples).
+			WithLongWindow(pc.LongWindowSize).
+			WithLimits(pc.MinLimit, pc.MaxLimit, pc.InitialLimit).
+			WithMaxLimitFactor(pc.MaxLimitFactor).
+			WithCorrelationWindow(pc.CorrelationWindowSize).
+			WithRejectionFactors(pc.InitialRejectionFactor, pc.MaxRejectionFactor).
+			WithLogger(log).
+			OnLimitChanged(func(e vegaslimiter.LimitChangedEvent) {
+				metrics.WithConcurrencyLimit(workload, strategy).Set(float64(e.NewLimit))
+			}).Build()
 	} else if c.VegasConfig != nil {
 		metrics.WithConcurrencyLimit(workload, strategy).Set(float64(c.VegasConfig.InitialLimit))
 		return c.VegasConfig.Build(slogger, limitChangedListener)
@@ -135,6 +151,16 @@ func (c Configs) ToExecutors(strategy string, Workloads []*client.Workload, metr
 				workloadName := workload.Name
 				onDoneFuncs = append(onDoneFuncs, func() {
 					p := policy.(adaptivelimiter.Metrics)
+					metrics.WithConcurrencyLimit(workloadName, strategy).Set(float64(p.Limit()))
+					metrics.WithQueueWorkload(workloadName, strategy).Set(float64(p.Blocked()))
+					metrics.WithThrottleProbability(workloadName, strategy).Set(p.RejectionRate())
+				})
+			} else if config.VegasLimiter2Config != nil {
+				policy := config.ToPolicy(metrics, strategyMetrics, prioritizer, workload.Name, strategy, logger)
+				policies = append(policies, policy)
+				workloadName := workload.Name
+				onDoneFuncs = append(onDoneFuncs, func() {
+					p := policy.(vegaslimiter.Metrics)
 					metrics.WithConcurrencyLimit(workloadName, strategy).Set(float64(p.Limit()))
 					metrics.WithQueueWorkload(workloadName, strategy).Set(float64(p.Blocked()))
 					metrics.WithThrottleProbability(workloadName, strategy).Set(p.RejectionRate())

@@ -1,40 +1,45 @@
 # Compares the Failsafe-go adaptive limiter to the go-concurrency-limits limiters.
 
 client:
-  prioritize: true
-
   workloads:
     - name: writes
       rps: 100
-      priority: 3
       service_times:
         - service_time: 50ms
-
-    - name: reads
-      rps: 10
-      priority: 1
-      service_times:
-        - service_time: 100ms
 
 server:
   threads: 12
 
 strategies:
-  - name: adaptivelimiter
-    # TODO move to server
+#  - name: adaptivelimiter
+#    client_policies:
+#      - adaptivelimiter:
+#          short_window_min_duration: 1s
+#          short_window_max_duration: 1s
+#          short_window_min_samples: 10
+#          long_window_size: 60
+#          min_limit: 2
+#          max_limit: 150
+#          initial_limit: 20
+#          max_limit_factor: 5
+#          correlation_window_size: 50
+#          initial_rejection_factor: 2
+#          max_rejection_factor: 3
+
+  - name: vegaslimiter2
     client_policies:
-      - adaptivelimiter:
+      - vegaslimiter2:
           short_window_min_duration: 1s
           short_window_max_duration: 1s
           short_window_min_samples: 10
-          long_window_size: 60
+          long_window_size: 20 # change this for vegas
           min_limit: 2
-          max_limit: 100
+          max_limit: 150
           initial_limit: 20
           max_limit_factor: 5
-          correlation_window_size: 20
+          correlation_window_size: 50
           initial_rejection_factor: 2
-          max_rejection_factor: 4
+          max_rejection_factor: 3
 
   #  - name: adaptivelimiterold
   #    client_policies:

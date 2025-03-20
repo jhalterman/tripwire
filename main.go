@@ -95,7 +95,7 @@ func startClientAndServer(logger *zap.SugaredLogger, config *Config, strategy *S
 		prioritizer = adaptivelimiter.NewPrioritizerBuilder(). // time.Second, 2*time.Second
 			WithLogger(slog.New(zapslog.NewHandler(logger.Desugar().Core()))).
 			Build()
-		prioritizer.ScheduleCalibrations(context.Background(), 500*time.Millisecond)
+		prioritizer.ScheduleCalibrations(context.Background(), time.Second)
 	}
 
 	clientExecutors, minClientTimeout := strategy.ClientPolicies.ToExecutors(strategy.Name, config.Client.Workloads, metrics, strategyMetrics, prioritizer, logger.Desugar())

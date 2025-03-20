@@ -10,6 +10,7 @@ type Config struct {
 	*BulkheadConfig        `yaml:"bulkhead"`
 	*CircuitBreakerConfig  `yaml:"circuitbreaker"`
 	*AdaptiveLimiterConfig `yaml:"adaptivelimiter"`
+	*VegasLimiter2Config   `yaml:"vegaslimiter2"`
 	*VegasConfig           `yaml:"vegaslimiter"`
 	*GradientConfig        `yaml:"gradientlimiter"`
 	*Gradient2Config       `yaml:"gradient2limiter"`
@@ -53,18 +54,31 @@ type CircuitBreakerConfig struct {
 }
 
 type AdaptiveLimiterConfig struct {
-	ShortWindowMinDuration  time.Duration `yaml:"short_window_min_duration"`
-	ShortWindowMaxDuration  time.Duration `yaml:"short_window_max_duration"`
-	ShortWindowMinSamples   uint          `yaml:"short_window_min_samples"`
-	LongWindowSize          uint          `yaml:"long_window_size"`
-	MinLimit                uint          `yaml:"min_limit"`
-	MaxLimit                uint          `yaml:"max_limit"`
-	InitialLimit            uint          `yaml:"initial_limit"`
-	MaxLimitFactor          float32       `yaml:"max_limit_factor"`
-	CorrelationWindowSize   uint          `yaml:"correlation_window_size"`
-	StabilizationWindowSize uint          `yaml:"stabilization_window_size"`
-	InitialRejectionFactor  float32       `yaml:"initial_rejection_factor"`
-	MaxRejectionFactor      float32       `yaml:"max_rejection_factor"`
+	ShortWindowMinDuration time.Duration `yaml:"short_window_min_duration"`
+	ShortWindowMaxDuration time.Duration `yaml:"short_window_max_duration"`
+	ShortWindowMinSamples  uint          `yaml:"short_window_min_samples"`
+	LongWindowSize         uint          `yaml:"long_window_size"`
+	MinLimit               uint          `yaml:"min_limit"`
+	MaxLimit               uint          `yaml:"max_limit"`
+	InitialLimit           uint          `yaml:"initial_limit"`
+	MaxLimitFactor         float32       `yaml:"max_limit_factor"`
+	CorrelationWindowSize  uint          `yaml:"correlation_window_size"`
+	InitialRejectionFactor float32       `yaml:"initial_rejection_factor"`
+	MaxRejectionFactor     float32       `yaml:"max_rejection_factor"`
+}
+
+type VegasLimiter2Config struct {
+	ShortWindowMinDuration time.Duration `yaml:"short_window_min_duration"`
+	ShortWindowMaxDuration time.Duration `yaml:"short_window_max_duration"`
+	ShortWindowMinSamples  uint          `yaml:"short_window_min_samples"`
+	LongWindowSize         uint          `yaml:"long_window_size"`
+	MinLimit               uint          `yaml:"min_limit"`
+	MaxLimit               uint          `yaml:"max_limit"`
+	InitialLimit           uint          `yaml:"initial_limit"`
+	MaxLimitFactor         float32       `yaml:"max_limit_factor"`
+	CorrelationWindowSize  uint          `yaml:"correlation_window_size"`
+	InitialRejectionFactor float32       `yaml:"initial_rejection_factor"`
+	MaxRejectionFactor     float32       `yaml:"max_rejection_factor"`
 }
 
 // See https://pkg.go.dev/github.com/platinummonkey/go-concurrency-limits@v0.8.0/limit#VegasLimit for details on how the Vegas limit works.
