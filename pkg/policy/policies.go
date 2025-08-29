@@ -82,13 +82,13 @@ func (c *Config) ToPolicy(metrics *metrics.Metrics, strategyMetrics *metrics.Str
 		metrics.WithConcurrencyLimit(workload, strategy).Set(float64(pc.InitialLimit))
 		// log := slog.New(zapslog.NewHandler(logger.Core()))
 		builder := adaptivelimiter.NewBuilder[*http.Response]().
-			WithShortWindow(pc.ShortWindowMinDuration, pc.ShortWindowMaxDuration, pc.ShortWindowMinSamples).
-			WithLongWindow(pc.LongWindowSize).
 			WithLimits(pc.MinLimit, pc.MaxLimit, pc.InitialLimit).
 			WithMaxLimitFactor(pc.MaxLimitFactor).
+			WithRecentWindow(pc.RecentWindowMinDuration, pc.RecentWindowMaxDuration, pc.RecentWindowMinSamples).
+			WithRecentQuantile(pc.RecentQuantile).
+			WithBaselineWindow(pc.BaselineWindowAge).
 			WithCorrelationWindow(pc.CorrelationWindowSize).
-			WithStabilizationWindow(pc.StabilizationWindowSize).
-			WithRejectionFactors(pc.InitialRejectionFactor, pc.MaxRejectionFactor).
+			WithQueueing(pc.InitialRejectionFactor, pc.MaxRejectionFactor).
 			//WithLogger(log).
 			OnLimitChanged(func(e adaptivelimiter.LimitChangedEvent) {
 				metrics.WithConcurrencyLimit(workload, strategy).Set(float64(e.NewLimit))
@@ -136,8 +136,8 @@ func (c Configs) ToExecutors(strategy string, Workloads []*client.Workload, metr
 				onDoneFuncs = append(onDoneFuncs, func() {
 					p := policy.(adaptivelimiter.Metrics)
 					metrics.WithConcurrencyLimit(workloadName, strategy).Set(float64(p.Limit()))
-					metrics.WithQueueWorkload(workloadName, strategy).Set(float64(p.Blocked()))
-					metrics.WithThrottleProbability(workloadName, strategy).Set(p.RejectionRate())
+					metrics.WithQueueWorkload(workloadName, strategy).Set(float64(p.Queued()))
+					// metrics.WithThrottleProbability(workloadName, strategy).Set(p.RejectionRate())
 				})
 			} else {
 				policy := config.ToPolicy(metrics, strategyMetrics, prioritizer, workload.Name, strategy, logger)

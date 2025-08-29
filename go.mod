@@ -1,10 +1,10 @@
 module tripwire
 
-go 1.21.0
+go 1.23.0
 
 require (
 	github.com/failsafe-go/failsafe-go v0.6.10-0.20241130071550-13a5498a41b7
-	github.com/platinummonkey/go-concurrency-limits v0.8.1-0.20241127030159-8fa4836672d5
+	github.com/platinummonkey/go-concurrency-limits v0.10.0
 	github.com/prometheus/client_golang v1.20.5
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/zap v1.27.0
@@ -25,8 +25,8 @@ require (
 	github.com/prometheus/common v0.62.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/sys v0.29.0 // indirect
-	google.golang.org/protobuf v1.36.3 // indirect
+	golang.org/x/sys v0.33.0 // indirect
+	google.golang.org/protobuf v1.36.5 // indirect
 )
 
 replace github.com/failsafe-go/failsafe-go => ../failsafe-go

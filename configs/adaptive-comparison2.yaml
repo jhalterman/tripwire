@@ -14,16 +14,15 @@ strategies:
   - name: adaptivelimiter
     client_policies:
       - adaptivelimiter:
-          short_window_min_duration: 1s
-          short_window_max_duration: 1s
-          short_window_min_samples: 10
-          long_window_size: 60
           min_limit: 2
           max_limit: 150
           initial_limit: 20
           max_limit_factor: 5
+          recent_window_min_duration: 1s
+          recent_window_max_duration: 1s
+          recent_window_min_samples: 10
+          baseline_window_age: 60
           correlation_window_size: 10
-          stabilization_window_size: 10
           initial_rejection_factor: 2
           max_rejection_factor: 3
 
