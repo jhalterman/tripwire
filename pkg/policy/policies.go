@@ -1,6 +1,7 @@
 package policy
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -88,11 +89,13 @@ func (c *Config) ToPolicy(metrics *metrics.Metrics, strategyMetrics *metrics.Str
 			WithRecentQuantile(pc.RecentQuantile).
 			WithBaselineWindow(pc.BaselineWindowAge).
 			WithCorrelationWindow(pc.CorrelationWindowSize).
-			WithQueueing(pc.InitialRejectionFactor, pc.MaxRejectionFactor).
 			//WithLogger(log).
 			OnLimitChanged(func(e adaptivelimiter.LimitChangedEvent) {
 				metrics.WithConcurrencyLimit(workload, strategy).Set(float64(e.NewLimit))
 			})
+		if pc.InitialRejectionFactor > 0 && pc.MaxRejectionFactor > 0 {
+			builder.WithQueueing(pc.InitialRejectionFactor, pc.MaxRejectionFactor)
+		}
 		if prioritizer != nil {
 			return builder.
 				// WithLogger(log.With("workload", workload)).
@@ -137,6 +140,7 @@ func (c Configs) ToExecutors(strategy string, Workloads []*client.Workload, metr
 					p := policy.(adaptivelimiter.Metrics)
 					metrics.WithConcurrencyLimit(workloadName, strategy).Set(float64(p.Limit()))
 					metrics.WithQueueWorkload(workloadName, strategy).Set(float64(p.Queued()))
+					fmt.Println("queued", "workload", workloadName, "strategy", strategy, p.Queued())
 					// metrics.WithThrottleProbability(workloadName, strategy).Set(p.RejectionRate())
 				})
 			} else {

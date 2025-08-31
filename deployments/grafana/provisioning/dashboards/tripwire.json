@@ -279,7 +279,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.3.1",
+      "pluginVersion": "11.2.0",
       "targets": [
         {
           "editorMode": "code",
@@ -340,7 +340,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.3.1",
+      "pluginVersion": "11.2.0",
       "targets": [
         {
           "editorMode": "code",
@@ -401,7 +401,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.3.1",
+      "pluginVersion": "11.2.0",
       "targets": [
         {
           "editorMode": "code",
@@ -462,7 +462,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.3.1",
+      "pluginVersion": "11.2.0",
       "targets": [
         {
           "editorMode": "code",
@@ -567,7 +567,7 @@
           "editorMode": "code",
           "expr": "queued_requests{strategy=\"$strategy\", workload=\"$workload\"}",
           "instant": false,
-          "legendFormat": "Blocked Requests",
+          "legendFormat": "Queued Requests",
           "range": true,
           "refId": "A"
         }
@@ -908,7 +908,7 @@
         "showHeader": true,
         "sortBy": []
       },
-      "pluginVersion": "11.3.1",
+      "pluginVersion": "11.2.0",
       "targets": [
         {
           "datasource": {
@@ -1599,20 +1599,26 @@
       "type": "timeseries"
     }
   ],
-  "preload": false,
   "refresh": "1s",
-  "schemaVersion": 40,
+  "schemaVersion": 39,
   "tags": [],
   "templating": {
     "list": [
       {
         "current": {
+          "selected": false,
           "text": "adaptivelimiter",
           "value": "adaptivelimiter"
         },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus_uid"
+        },
         "definition": "label_values(strategy)",
+        "hide": 0,
         "includeAll": true,
         "label": "Strategy",
+        "multi": false,
         "name": "strategy",
         "options": [],
         "query": {
@@ -1622,16 +1628,25 @@
         },
         "refresh": 1,
         "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
         "type": "query"
       },
       {
         "current": {
+          "selected": false,
           "text": "writes",
           "value": "writes"
         },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus_uid"
+        },
         "definition": "label_values(workload)",
+        "hide": 0,
         "includeAll": true,
         "label": "Workload",
+        "multi": false,
         "name": "workload",
         "options": [],
         "query": {
@@ -1641,6 +1656,8 @@
         },
         "refresh": 1,
         "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
         "type": "query"
       }
     ]

@@ -16,6 +16,7 @@ import (
 	"github.com/failsafe-go/failsafe-go/bulkhead"
 	"github.com/failsafe-go/failsafe-go/circuitbreaker"
 	"github.com/failsafe-go/failsafe-go/failsafehttp"
+	"github.com/failsafe-go/failsafe-go/priority"
 	"github.com/failsafe-go/failsafe-go/ratelimiter"
 	"github.com/failsafe-go/failsafe-go/timeout"
 	"go.uber.org/zap"
@@ -35,10 +36,10 @@ type Config struct {
 }
 
 type Workload struct {
-	Name         string                   `yaml:"name"`
-	RPS          uint                     `yaml:"rps"`
-	Priority     adaptivelimiter.Priority `yaml:"priority"`
-	ServiceTimes WeightedServiceTimes     `yaml:"service_times"`
+	Name         string               `yaml:"name"`
+	RPS          uint                 `yaml:"rps"`
+	Priority     priority.Priority    `yaml:"priority"`
+	ServiceTimes WeightedServiceTimes `yaml:"service_times"`
 	WeightSum    int
 }
 
@@ -210,7 +211,7 @@ func (c *Client) performStage(stage *Stage) {
 	}
 }
 
-func (c *Client) sendRequest(workload string, workloadMetrics *metrics.WorkloadMetrics, serviceTime time.Duration, priority adaptivelimiter.Priority) {
+func (c *Client) sendRequest(workload string, workloadMetrics *metrics.WorkloadMetrics, serviceTime time.Duration, p priority.Priority) {
 	start := time.Now()
 	request := server.Request{ServiceTime: serviceTime}
 	reqBody, err := yaml.Marshal(&request)
@@ -219,7 +220,7 @@ func (c *Client) sendRequest(workload string, workloadMetrics *metrics.WorkloadM
 		return
 	}
 
-	ctx := context.WithValue(context.Background(), adaptivelimiter.PriorityKey, priority)
+	ctx := priority.ContextWithPriority(context.Background(), p)
 	req, err := http.NewRequestWithContext(ctx, "POST", c.serverAddr, bytes.NewBuffer(reqBody))
 	if err != nil {
 		c.logger.Errorw("error creating request", "error", err)
