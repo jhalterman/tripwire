@@ -23,9 +23,10 @@ type Metrics struct {
 	RunDuration            *prometheus.GaugeVec
 
 	// Client metrics
-	ClientReqFailures *prometheus.CounterVec
-	ClientExpectedRps *prometheus.GaugeVec
-	ClientReqTimeouts *prometheus.CounterVec
+	ClientReqFailures      *prometheus.CounterVec
+	ClientExpectedRps      *prometheus.GaugeVec
+	ClientReqTimeouts      *prometheus.CounterVec
+	ClientInflightRequests *prometheus.GaugeVec
 
 	// Server metrics
 	ServerThreads          prometheus.Gauge
@@ -48,17 +49,23 @@ func New(logger *zap.SugaredLogger) *Metrics {
 		Server: util.NewServer(mux, 8080, logger),
 
 		// Run metrics
+		RunDuration: promauto.NewGaugeVec(
+			prometheus.GaugeOpts{Name: "run_duration"},
+			[]string{"run_id", "strategy"},
+		),
+
+		// Client metrics
 		ClientReqTotal: promauto.NewCounterVec(
 			prometheus.CounterOpts{Name: "client_req_total"},
-			[]string{"run_id", "strategy"},
+			[]string{"run_id", "workload", "strategy"},
 		),
 		ClientReqSuccesses: promauto.NewCounterVec(
 			prometheus.CounterOpts{Name: "client_req_successes"},
-			[]string{"run_id", "strategy"},
+			[]string{"run_id", "workload", "strategy"},
 		),
 		ClientReqRejected: promauto.NewCounterVec(
 			prometheus.CounterOpts{Name: "client_req_rejected"},
-			[]string{"run_id", "strategy"},
+			[]string{"run_id", "workload", "strategy"},
 		),
 		ClientReqResponseTimes: promauto.NewHistogramVec(
 			prometheus.HistogramOpts{
@@ -67,25 +74,35 @@ func New(logger *zap.SugaredLogger) *Metrics {
 				NativeHistogramMaxBucketNumber:  100,
 				NativeHistogramMinResetDuration: 1 * time.Hour,
 			},
-			[]string{"run_id", "strategy"},
+			[]string{"run_id", "workload", "strategy"},
 		),
-		RunDuration: promauto.NewGaugeVec(
-			prometheus.GaugeOpts{Name: "run_duration"},
-			[]string{"run_id", "strategy"},
-		),
-
-		// Client metrics
 		ClientReqFailures: promauto.NewCounterVec(
 			prometheus.CounterOpts{Name: "client_req_failures"},
-			[]string{"strategy"},
+			[]string{"workload", "strategy"},
 		),
 		ClientExpectedRps: promauto.NewGaugeVec(
 			prometheus.GaugeOpts{Name: "client_expected_rps"},
-			[]string{"strategy"},
+			[]string{"workload", "strategy"},
 		),
 		ClientReqTimeouts: promauto.NewCounterVec(
 			prometheus.CounterOpts{Name: "client_req_timeouts"},
-			[]string{"strategy"},
+			[]string{"workload", "strategy"},
+		),
+		ClientInflightRequests: promauto.NewGaugeVec(
+			prometheus.GaugeOpts{Name: "client_inflight_requests"},
+			[]string{"workload", "strategy"},
+		),
+		QueuedRequests: promauto.NewGaugeVec(
+			prometheus.GaugeOpts{Name: "queued_requests"},
+			[]string{"workload", "strategy"},
+		),
+		ConcurrencyLimit: promauto.NewGaugeVec(
+			prometheus.GaugeOpts{Name: "concurrency_limit"},
+			[]string{"workload", "strategy"},
+		),
+		ThrottleProbability: promauto.NewGaugeVec(
+			prometheus.GaugeOpts{Name: "throttle_probability"},
+			[]string{"workload", "strategy"},
 		),
 
 		// Server metrics
@@ -98,7 +115,7 @@ func New(logger *zap.SugaredLogger) *Metrics {
 		),
 		ServerInflightRequests: promauto.NewGaugeVec(
 			prometheus.GaugeOpts{Name: "server_inflight_requests"},
-			[]string{"strategy"},
+			[]string{"workload", "strategy"},
 		),
 
 		// Policy metrics
@@ -110,50 +127,60 @@ func New(logger *zap.SugaredLogger) *Metrics {
 			prometheus.GaugeOpts{Name: "rate_limit"},
 			[]string{"strategy"},
 		),
-		ConcurrencyLimit: promauto.NewGaugeVec(
-			prometheus.GaugeOpts{Name: "concurrency_limit"},
-			[]string{"strategy"},
-		),
-		ThrottleProbability: promauto.NewGaugeVec(
-			prometheus.GaugeOpts{Name: "throttle_probability"},
-			[]string{"strategy"},
-		),
-		QueuedRequests: promauto.NewGaugeVec(
-			prometheus.GaugeOpts{Name: "queued_requests"},
-			[]string{"strategy"},
-		),
 	}
 }
 
-type StrategyMetrics struct {
+type WorkloadMetrics struct {
 	RunID     string
 	Labels    prometheus.Labels
 	RunLabels prometheus.Labels
 
-	// Run metrics for things that must be distinguishable in the scenario result table
+	// Client metrics
 	ClientReqTotal         prometheus.Counter
 	ClientReqSuccesses     prometheus.Counter
 	ClientReqRejected      prometheus.Counter
 	ClientReqResponseTimes prometheus.Observer
-	RunDuration            prometheus.Gauge
+	ClientReqFailures      prometheus.Counter
+	ClientExpectedRps      prometheus.Gauge
+	ClientReqTimeouts      prometheus.Counter
+	ClientInflightRequests prometheus.Gauge
+}
 
-	// Client metrics
-	ClientReqFailures prometheus.Counter
-	ClientExpectedRps prometheus.Gauge
-	ClientReqTimeouts prometheus.Counter
+func (m *Metrics) WithWorkload(runID string, workload string, strategy string) *WorkloadMetrics {
+	labels := prometheus.Labels{"workload": workload, "strategy": strategy}
+	runLabels := prometheus.Labels{"run_id": runID, "workload": workload, "strategy": strategy}
 
-	// Server metrics
-	ServerThreads          prometheus.Gauge
-	ServerServiceTime      prometheus.Gauge
-	ServerInflightRequests prometheus.Gauge
+	return &WorkloadMetrics{
+		RunID:     runID,
+		Labels:    labels,
+		RunLabels: runLabels,
 
-	// Policy metrics
-	MinTimeout          prometheus.Gauge
-	RateLimit           prometheus.Gauge
-	ConcurrencyLimit    prometheus.Gauge
-	CircuitbreakerOpen  prometheus.Gauge
-	ThrottleProbability prometheus.Gauge
-	QueuedRequests      prometheus.Gauge
+		// Workload metrics
+		ClientReqTotal:         m.ClientReqTotal.With(runLabels),
+		ClientReqSuccesses:     m.ClientReqSuccesses.With(runLabels),
+		ClientReqRejected:      m.ClientReqRejected.With(runLabels),
+		ClientReqResponseTimes: m.ClientReqResponseTimes.With(runLabels),
+		ClientReqFailures:      m.ClientReqFailures.With(labels),
+		ClientExpectedRps:      m.ClientExpectedRps.With(labels),
+		ClientReqTimeouts:      m.ClientReqTimeouts.With(labels),
+		ClientInflightRequests: m.ClientInflightRequests.With(labels),
+	}
+}
+
+func (m *Metrics) WithQueueWorkload(workload string, strategy string) prometheus.Gauge {
+	return m.QueuedRequests.With(prometheus.Labels{"workload": workload, "strategy": strategy})
+}
+
+func (m *Metrics) WithConcurrencyLimit(workload string, strategy string) prometheus.Gauge {
+	return m.ConcurrencyLimit.With(prometheus.Labels{"workload": workload, "strategy": strategy})
+}
+
+func (m *Metrics) WithThrottleProbability(workload string, strategy string) prometheus.Gauge {
+	return m.ThrottleProbability.With(prometheus.Labels{"workload": workload, "strategy": strategy})
+}
+
+func (m *Metrics) WithServerInflight(workload string, strategy string) prometheus.Gauge {
+	return m.ServerInflightRequests.With(prometheus.Labels{"workload": workload, "strategy": strategy})
 }
 
 func (m *Metrics) WithStrategy(runID string, strategy string) *StrategyMetrics {
@@ -166,27 +193,32 @@ func (m *Metrics) WithStrategy(runID string, strategy string) *StrategyMetrics {
 		RunLabels: runLabels,
 
 		// Run metrics
-		ClientReqTotal:         m.ClientReqTotal.With(runLabels),
-		ClientReqSuccesses:     m.ClientReqSuccesses.With(runLabels),
-		ClientReqRejected:      m.ClientReqRejected.With(runLabels),
-		ClientReqResponseTimes: m.ClientReqResponseTimes.With(runLabels),
-		RunDuration:            m.RunDuration.With(runLabels),
-
-		// Client metrics
-		ClientReqFailures: m.ClientReqFailures.With(labels),
-		ClientExpectedRps: m.ClientExpectedRps.With(labels),
-		ClientReqTimeouts: m.ClientReqTimeouts.With(labels),
+		RunDuration: m.RunDuration.With(runLabels),
 
 		// Server metrics
-		ServerThreads:          m.ServerThreads,
-		ServerServiceTime:      m.ServerServiceTime.With(labels),
-		ServerInflightRequests: m.ServerInflightRequests.With(labels),
+		ServerThreads:     m.ServerThreads,
+		ServerServiceTime: m.ServerServiceTime.With(labels),
 
 		// Policy metrics
-		MinTimeout:          m.MinTimeout.With(labels),
-		RateLimit:           m.RateLimit.With(labels),
-		ConcurrencyLimit:    m.ConcurrencyLimit.With(labels),
-		ThrottleProbability: m.ThrottleProbability.With(labels),
-		QueuedRequests:      m.QueuedRequests.With(labels),
+		MinTimeout: m.MinTimeout.With(labels),
+		RateLimit:  m.RateLimit.With(labels),
 	}
+}
+
+type StrategyMetrics struct {
+	RunID     string
+	Labels    prometheus.Labels
+	RunLabels prometheus.Labels
+
+	// Run metrics for things that must be distinguishable in the scenario result table
+	RunDuration prometheus.Gauge
+
+	// Server metrics
+	ServerThreads     prometheus.Gauge
+	ServerServiceTime prometheus.Gauge
+
+	// Policy metrics
+	MinTimeout         prometheus.Gauge
+	RateLimit          prometheus.Gauge
+	CircuitbreakerOpen prometheus.Gauge
 }

@@ -206,26 +206,12 @@
             "uid": "prometheus_uid"
           },
           "editorMode": "code",
-          "expr": "avg(irate(client_req_total{strategy=~\"$strategy\"}[$__rate_interval]))",
+          "expr": "sum(irate(client_req_total{strategy=\"$strategy\", workload=\"$workload\"}[$__rate_interval]))",
           "hide": false,
           "interval": "1s",
           "legendFormat": "Actual",
           "range": true,
           "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus_uid"
-          },
-          "editorMode": "code",
-          "expr": "server_threads / client_avg_stage_response_time{strategy=~\"adaptivelimiter\"} # Use Little's law to approximate RPS capacity",
-          "hide": true,
-          "instant": false,
-          "interval": "1s",
-          "legendFormat": "Capacity",
-          "range": true,
-          "refId": "C"
         },
         {
           "datasource": {
@@ -271,7 +257,7 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 4,
+        "w": 3,
         "x": 12,
         "y": 0
       },
@@ -293,17 +279,78 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.3.1",
+      "pluginVersion": "11.2.0",
       "targets": [
         {
           "editorMode": "code",
-          "expr": "avg(irate(client_req_total{strategy=~\"$strategy\"}[$__rate_interval]))",
+          "expr": "sum(irate(client_req_total{strategy=~\"$strategy\"}[$__rate_interval]))",
           "legendFormat": "RPS",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "RPS",
+      "title": "Total RPS",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus_uid"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "req"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 15,
+        "y": 0
+      },
+      "id": 14,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.2.0",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum(server_inflight_requests{ strategy=\"$strategy\"})",
+          "legendFormat": "RPS",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Total Inflight",
       "type": "stat"
     },
     {
@@ -332,11 +379,11 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 4,
-        "x": 16,
+        "w": 3,
+        "x": 18,
         "y": 0
       },
-      "id": 14,
+      "id": 18,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
@@ -354,17 +401,17 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.3.1",
+      "pluginVersion": "11.2.0",
       "targets": [
         {
           "editorMode": "code",
-          "expr": "avg(concurrency_limit{strategy=~\"$strategy\"} > 0)",
+          "expr": "sum(concurrency_limit{ strategy=~\"$strategy\"} > 0)",
           "legendFormat": "RPS",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Concurrency limit",
+      "title": "Total Concurrency Limit",
       "type": "stat"
     },
     {
@@ -393,8 +440,8 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 4,
-        "x": 20,
+        "w": 3,
+        "x": 21,
         "y": 0
       },
       "id": 15,
@@ -415,17 +462,17 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.3.1",
+      "pluginVersion": "11.2.0",
       "targets": [
         {
           "editorMode": "code",
-          "expr": "avg(irate(client_req_successes{strategy=~\"$strategy\"}[$__rate_interval]))",
+          "expr": "sum(irate(client_req_successes{strategy=~\"$strategy\"}[$__rate_interval]))",
           "legendFormat": "RPS",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Success Rate",
+      "title": "Total Goodput",
       "type": "stat"
     },
     {
@@ -518,9 +565,9 @@
             "uid": "prometheus_uid"
           },
           "editorMode": "code",
-          "expr": "avg(queued_requests{strategy=~\"$strategy\"})",
+          "expr": "queued_requests{strategy=\"$strategy\", workload=\"$workload\"}",
           "instant": false,
-          "legendFormat": "Blocked Requests",
+          "legendFormat": "Queued Requests",
           "range": true,
           "refId": "A"
         }
@@ -530,24 +577,49 @@
     },
     {
       "datasource": {
-        "default": true,
         "type": "prometheus",
         "uid": "prometheus_uid"
       },
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "palette-classic"
           },
           "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
             },
-            "filterable": false,
-            "inspect": false
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -565,133 +637,36 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
+        "h": 5,
         "w": 12,
         "x": 12,
         "y": 5
       },
-      "id": 10,
+      "id": 17,
       "options": {
-        "cellHeight": "sm",
-        "footer": {
-          "countRows": false,
-          "fields": "",
-          "reducer": [
-            "sum"
-          ],
-          "show": false
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
         },
-        "frameIndex": 0,
-        "showHeader": true,
-        "sortBy": []
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
       },
       "pluginVersion": "11.3.1",
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus_uid"
-          },
           "editorMode": "code",
-          "exemplar": false,
-          "expr": "client_req_successes / client_req_total",
-          "format": "table",
-          "hide": false,
-          "instant": false,
-          "interval": "1s",
-          "legendFormat": "Success rate",
+          "expr": "avg by(workload)(\n    irate(client_req_successes{strategy=\"$strategy\"}[$__rate_interval])\n    / irate(client_req_total{ strategy=\"$strategy\"}[$__rate_interval])\n) * 100",
+          "legendFormat": "{{label_name}}",
           "range": true,
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus_uid"
-          },
-          "editorMode": "code",
-          "exemplar": false,
-          "expr": "histogram_sum(client_req_response_times) / histogram_count(client_req_response_times)",
-          "format": "table",
-          "hide": false,
-          "instant": false,
-          "interval": "1s",
-          "legendFormat": "Avg response time",
-          "range": true,
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus_uid"
-          },
-          "editorMode": "code",
-          "exemplar": false,
-          "expr": "client_req_successes / client_req_total # Score = Success Rate * Duration / sqrt(Avg Latency). This is meant to give more weight to success rate than latency\n* run_duration\n/ sqrt((histogram_sum(client_req_response_times) / histogram_count(client_req_response_times)))",
-          "format": "table",
-          "hide": false,
-          "instant": false,
-          "interval": "1s",
-          "legendFormat": "Score",
-          "range": true,
-          "refId": "B"
         }
       ],
-      "title": "Runs",
-      "transformations": [
-        {
-          "id": "filterFieldsByName",
-          "options": {
-            "include": {
-              "names": [
-                "run_id",
-                "Value #A",
-                "Value #C",
-                "Value #B",
-                "Total requests"
-              ]
-            }
-          }
-        },
-        {
-          "id": "joinByField",
-          "options": {
-            "byField": "run_id",
-            "mode": "outer"
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {},
-            "includeByName": {},
-            "indexByName": {
-              "Value #A": 1,
-              "Value #B": 3,
-              "Value #C": 2,
-              "run_id": 0
-            },
-            "renameByName": {
-              "Value #A": "Success rate",
-              "Value #B": "Score",
-              "Value #C": "Avg response time (s)",
-              "run_id": "Run"
-            }
-          }
-        },
-        {
-          "id": "sortBy",
-          "options": {
-            "fields": {},
-            "sort": [
-              {
-                "desc": true,
-                "field": "Run"
-              }
-            ]
-          }
-        }
-      ],
-      "type": "table"
+      "title": "Workload Success Rate",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -840,7 +815,7 @@
             "uid": "prometheus_uid"
           },
           "editorMode": "code",
-          "expr": "avg(server_inflight_requests{strategy=~\"$strategy\"})",
+          "expr": "avg(server_inflight_requests{strategy=\"$strategy\", workload=\"$workload\"})",
           "format": "time_series",
           "interval": "1s",
           "legendFormat": "Inflight",
@@ -865,7 +840,7 @@
             "uid": "prometheus_uid"
           },
           "editorMode": "code",
-          "expr": "avg(concurrency_limit{strategy=~\"$strategy\"} > 0)",
+          "expr": "avg(concurrency_limit{strategy=\"$strategy\", workload=\"$workload\"} > 0)",
           "hide": false,
           "instant": false,
           "legendFormat": "Limit",
@@ -875,6 +850,171 @@
       ],
       "title": "Concurrency",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "default": true,
+        "type": "prometheus",
+        "uid": "prometheus_uid"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": false,
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 10
+      },
+      "id": 10,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "frameIndex": 0,
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "11.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus_uid"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "client_req_successes / client_req_total",
+          "format": "table",
+          "hide": false,
+          "instant": false,
+          "interval": "1s",
+          "legendFormat": "Success rate",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus_uid"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "histogram_sum(client_req_response_times) / histogram_count(client_req_response_times)",
+          "format": "table",
+          "hide": false,
+          "instant": false,
+          "interval": "1s",
+          "legendFormat": "Avg response time",
+          "range": true,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus_uid"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "client_req_successes / client_req_total # Score = Success Rate * Duration / sqrt(Avg Latency). This is meant to give more weight to success rate than latency\n* run_duration\n/ sqrt((histogram_sum(client_req_response_times) / histogram_count(client_req_response_times)))",
+          "format": "table",
+          "hide": false,
+          "instant": false,
+          "interval": "1s",
+          "legendFormat": "Score",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Runs",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "run_id",
+                "Value #A",
+                "Value #C",
+                "Value #B",
+                "Total requests"
+              ]
+            }
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "run_id",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "includeByName": {},
+            "indexByName": {
+              "Value #A": 1,
+              "Value #B": 3,
+              "Value #C": 2,
+              "run_id": 0
+            },
+            "renameByName": {
+              "Value #A": "Success rate",
+              "Value #B": "Score",
+              "Value #C": "Avg response time (s)",
+              "run_id": "Run"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": true,
+                "field": "Run"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "table"
     },
     {
       "datasource": {
@@ -1070,7 +1210,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "avg(histogram_sum(rate(client_req_response_times{strategy=~\"$strategy\"}[$__rate_interval]))) \n/ \navg(histogram_count(rate(client_req_response_times{strategy=~\"$strategy\"}[$__rate_interval]))) # Sum to get rid of run_id label",
+          "expr": "histogram_sum(rate(client_req_response_times{workload=\"$workload\", strategy=\"$strategy\"}[$__rate_interval]))\n/ \nhistogram_count(rate(client_req_response_times{workload=\"$workload\", strategy=\"$strategy\"}[$__rate_interval])) # Sum to get rid of run_id label",
           "hide": false,
           "instant": false,
           "interval": "1s",
@@ -1085,7 +1225,7 @@
             "uid": "prometheus_uid"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(.5, sum(rate(client_req_response_times{strategy=~\"$strategy\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(.5, sum(rate(client_req_response_times{workload=\"$workload\", strategy=\"$strategy\"}[$__rate_interval])))",
           "hide": false,
           "interval": "1s",
           "legendFormat": "p50",
@@ -1098,7 +1238,7 @@
             "uid": "prometheus_uid"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(.9, sum(rate(client_req_response_times{strategy=~\"$strategy\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(.9, sum(rate(client_req_response_times{workload=\"$workload\", strategy=\"$strategy\"}[$__rate_interval])))",
           "hide": false,
           "instant": false,
           "interval": "1s",
@@ -1112,7 +1252,7 @@
             "uid": "prometheus_uid"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(.99, sum(rate(client_req_response_times{strategy=~\"$strategy\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(.99, sum(rate(client_req_response_times{workload=\"$workload\", strategy=\"$strategy\"}[$__rate_interval])))",
           "hide": false,
           "instant": false,
           "interval": "1s",
@@ -1318,7 +1458,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "avg(irate(client_req_successes{strategy=~\"$strategy\"}[$__rate_interval]))",
+          "expr": "sum(irate(client_req_successes{workload=\"$workload\", strategy=\"$strategy\"}[$__rate_interval]))",
           "hide": false,
           "instant": false,
           "interval": "1s",
@@ -1332,7 +1472,7 @@
             "uid": "prometheus_uid"
           },
           "editorMode": "code",
-          "expr": "avg(irate(client_req_rejected{strategy=~\"$strategy\"}[$__rate_interval]))",
+          "expr": "sum(irate(client_req_rejected{workload=\"$workload\", strategy=\"$strategy\"}[$__rate_interval]))",
           "hide": false,
           "instant": false,
           "interval": "1s",
@@ -1346,25 +1486,12 @@
             "uid": "prometheus_uid"
           },
           "editorMode": "code",
-          "expr": "avg(irate(client_req_timeouts{strategy=~\"$strategy\"}[$__rate_interval]))",
+          "expr": "sum(irate(client_req_timeouts{workload=\"$workload\", strategy=\"$strategy\"}[$__rate_interval]))",
           "hide": false,
           "interval": "1s",
           "legendFormat": "Timeout",
           "range": true,
           "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus_uid"
-          },
-          "editorMode": "code",
-          "expr": "server_threads / client_avg_stage_response_time{strategy=~\"$strategy\"} # Use Little's law to approximate RPS capacity",
-          "hide": true,
-          "interval": "1s",
-          "legendFormat": "Capacity",
-          "range": true,
-          "refId": "D"
         }
       ],
       "title": "Responses",
@@ -1460,42 +1587,38 @@
             "uid": "prometheus_uid"
           },
           "editorMode": "code",
-          "expr": "avg(throttle_probability{strategy=~\"$strategy\"})",
+          "expr": "throttle_probability{workload=\"$workload\", strategy=\"$strategy\"}",
           "hide": false,
           "instant": false,
-          "legendFormat": "Throttle Probability",
+          "legendFormat": "Rejection Probability",
           "range": true,
           "refId": "B"
         }
       ],
-      "title": "Load Shedding",
+      "title": "Throttling",
       "type": "timeseries"
     }
   ],
-  "preload": false,
   "refresh": "1s",
-  "schemaVersion": 40,
+  "schemaVersion": 39,
   "tags": [],
   "templating": {
     "list": [
       {
-        "baseFilters": [],
+        "current": {
+          "selected": false,
+          "text": "adaptivelimiter",
+          "value": "adaptivelimiter"
+        },
         "datasource": {
           "type": "prometheus",
           "uid": "prometheus_uid"
         },
-        "filters": [],
-        "name": "Filters",
-        "type": "adhoc"
-      },
-      {
-        "current": {
-          "text": "adaptivelimiter",
-          "value": "adaptivelimiter"
-        },
         "definition": "label_values(strategy)",
+        "hide": 0,
         "includeAll": true,
         "label": "Strategy",
+        "multi": false,
         "name": "strategy",
         "options": [],
         "query": {
@@ -1505,12 +1628,42 @@
         },
         "refresh": 1,
         "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "writes",
+          "value": "writes"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus_uid"
+        },
+        "definition": "label_values(workload)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Workload",
+        "multi": false,
+        "name": "workload",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(workload)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
         "type": "query"
       }
     ]
   },
   "time": {
-    "from": "now-5m",
+    "from": "now-2m",
     "to": "now"
   },
   "timepicker": {
@@ -1531,6 +1684,6 @@
   "timezone": "",
   "title": "Tripwire",
   "uid": "fCAGJVqSz",
-  "version": 18,
+  "version": 31,
   "weekStart": ""
 }

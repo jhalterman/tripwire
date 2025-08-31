@@ -54,14 +54,14 @@ func (c *GradientConfig) Build(slogger *slog.Logger, limitChangedListener func(a
 
 func (c *Gradient2Config) UnmarshalYAML(value *yaml.Node) error {
 	*c = Gradient2Config{
-		ShortWindowMinDuration: time.Second,
-		ShortWindowMaxDuration: time.Second,
-		ShortWindowMinSamples:  10,
-		LongWindowSize:         60,
-		MinLimit:               1,
-		MaxLimit:               200,
-		InitialLimit:           20,
-		SmoothingFactor:        0.1,
+		RecentWindowMinDuration: time.Second,
+		RecentWindowMaxDuration: time.Second,
+		RecentWindowMinSamples:  10,
+		BaselineWindowAge:       60,
+		MinLimit:                1,
+		MaxLimit:                200,
+		InitialLimit:            20,
+		SmoothingFactor:         0.1,
 	}
 	type Alias Gradient2Config
 	var alias = Alias(*c)
@@ -75,14 +75,14 @@ func (c *Gradient2Config) UnmarshalYAML(value *yaml.Node) error {
 func (c *Gradient2Config) Build(slogger *slog.Logger, limitChangedListener func(adaptivelimiter.LimitChangedEvent)) GclLimiter[*http.Response] {
 	logger := slogLogger{slogger}
 	gLimit, err := limit.NewGradient2Limit("tripwire", int(c.InitialLimit), int(c.MaxLimit), int(c.MinLimit), nil,
-		float64(c.SmoothingFactor), int(c.LongWindowSize), logger, core.EmptyMetricRegistryInstance)
+		float64(c.SmoothingFactor), int(c.BaselineWindowAge), logger, core.EmptyMetricRegistryInstance)
 	if err != nil {
 		panic("failed to create gradient2 limit " + err.Error())
 	}
 	gLimit.NotifyOnChange(func(limit int) {
 		limitChangedListener(adaptivelimiter.LimitChangedEvent{NewLimit: uint(limit)})
 	})
-	gLimiter, err := limiter.NewDefaultLimiter(gLimit, int64(c.ShortWindowMinDuration), int64(c.ShortWindowMaxDuration), 1, int(c.ShortWindowMinSamples),
+	gLimiter, err := limiter.NewDefaultLimiter(gLimit, int64(c.RecentWindowMinDuration), int64(c.RecentWindowMaxDuration), 1, int(c.RecentWindowMinSamples),
 		strategy.NewSimpleStrategy(int(c.InitialLimit)), logger, core.EmptyMetricRegistryInstance)
 	if err != nil {
 		panic("failed to create gradient2 limiter " + err.Error())
@@ -92,12 +92,12 @@ func (c *Gradient2Config) Build(slogger *slog.Logger, limitChangedListener func(
 
 func (c *VegasConfig) UnmarshalYAML(value *yaml.Node) error {
 	*c = VegasConfig{
-		ShortWindowMinDuration: time.Second,
-		ShortWindowMaxDuration: time.Second,
-		ShortWindowMinSamples:  1,
-		MaxLimit:               200,
-		InitialLimit:           20,
-		SmoothingFactor:        0.1,
+		RecentWindowMinDuration: time.Second,
+		RecentWindowMaxDuration: time.Second,
+		RecentWindowMinSamples:  1,
+		MaxLimit:                200,
+		InitialLimit:            20,
+		SmoothingFactor:         0.1,
 	}
 	type Alias VegasConfig
 	var alias = Alias(*c)
@@ -115,7 +115,7 @@ func (c *VegasConfig) Build(slogger *slog.Logger, limitChangedListener func(adap
 	vLimit.NotifyOnChange(func(limit int) {
 		limitChangedListener(adaptivelimiter.LimitChangedEvent{NewLimit: uint(limit)})
 	})
-	vLimiter, err := limiter.NewDefaultLimiter(vLimit, int64(c.ShortWindowMinDuration), int64(c.ShortWindowMaxDuration), 1, int(c.ShortWindowMinSamples),
+	vLimiter, err := limiter.NewDefaultLimiter(vLimit, int64(c.RecentWindowMinDuration), int64(c.RecentWindowMaxDuration), 1, int(c.RecentWindowMinSamples),
 		strategy.NewSimpleStrategy(int(c.InitialLimit)), logger, core.EmptyMetricRegistryInstance)
 	if err != nil {
 		panic("failed to create vegas limiter " + err.Error())

@@ -53,49 +53,55 @@ type CircuitBreakerConfig struct {
 }
 
 type AdaptiveLimiterConfig struct {
-	ShortWindowMinDuration time.Duration `yaml:"short_window_min_duration"`
-	ShortWindowMaxDuration time.Duration `yaml:"short_window_max_duration"`
-	ShortWindowMinSamples  uint          `yaml:"short_window_min_samples"`
-	LongWindowSize         uint          `yaml:"long_window_size"`
-	MinLimit               uint          `yaml:"min_limit"`
-	MaxLimit               uint          `yaml:"max_limit"`
-	InitialLimit           uint          `yaml:"initial_limit"`
-	MaxLimitFactor         float32       `yaml:"max_limit_factor"`
-	MaxExecutionTime       time.Duration `yaml:"max_execution_time"`
-	CorrelationWindowSize  uint          `yaml:"correlation_window_size"`
-	VariationWindowSize    uint          `yaml:"variation_window_size"`
-	SmoothingFactor        float32       `yaml:"smoothing_factor"`
+	MinLimit       uint    `yaml:"min_limit"`
+	MaxLimit       uint    `yaml:"max_limit"`
+	InitialLimit   uint    `yaml:"initial_limit"`
+	MaxLimitFactor float32 `yaml:"max_limit_factor"`
+
+	RecentWindowMinDuration time.Duration `yaml:"recent_window_min_duration"`
+	RecentWindowMaxDuration time.Duration `yaml:"recent_window_max_duration"`
+	RecentWindowMinSamples  uint          `yaml:"recent_window_min_samples"`
+	RecentQuantile          float32       `yaml:"recent_quantile"`
+	BaselineWindowAge       uint          `yaml:"baseline_window_age"`
+
+	CorrelationWindowSize   uint    `yaml:"correlation_window_size"`
+	StabilizationWindowSize uint    `yaml:"stabilization_window_size"`
+	InitialRejectionFactor  float32 `yaml:"initial_rejection_factor"`
+	MaxRejectionFactor      float32 `yaml:"max_rejection_factor"`
 }
 
 // See https://pkg.go.dev/github.com/platinummonkey/go-concurrency-limits@v0.8.0/limit#VegasLimit for details on how the Vegas limit works.
 type VegasConfig struct {
-	ShortWindowMinDuration time.Duration `yaml:"short_window_min_duration"`
-	ShortWindowMaxDuration time.Duration `yaml:"short_window_max_duration"`
-	ShortWindowMinSamples  uint          `yaml:"short_window_min_samples"`
-	MaxLimit               uint          `yaml:"max_limit"`
-	InitialLimit           uint          `yaml:"initial_limit"`
-	SmoothingFactor        float32       `yaml:"smoothing_factor"`
+	MaxLimit     uint `yaml:"max_limit"`
+	InitialLimit uint `yaml:"initial_limit"`
+
+	RecentWindowMinDuration time.Duration `yaml:"recent_window_min_duration"`
+	RecentWindowMaxDuration time.Duration `yaml:"recent_window_max_duration"`
+	RecentWindowMinSamples  uint          `yaml:"recent_window_min_samples"`
+	SmoothingFactor         float32       `yaml:"smoothing_factor"`
 }
 
 // See https://pkg.go.dev/github.com/platinummonkey/go-concurrency-limits@v0.8.0/limit#GradientLimit for details on how the gradient limit works.
 type GradientConfig struct {
+	MinLimit     uint `yaml:"min_limit"`
+	MaxLimit     uint `yaml:"max_limit"`
+	InitialLimit uint `yaml:"initial_limit"`
+
 	ShortWindowMinDuration time.Duration `yaml:"short_window_min_duration"`
 	ShortWindowMaxDuration time.Duration `yaml:"short_window_max_duration"`
 	ShortWindowMinSamples  uint          `yaml:"short_window_min_samples"`
-	MinLimit               uint          `yaml:"min_limit"`
-	MaxLimit               uint          `yaml:"max_limit"`
-	InitialLimit           uint          `yaml:"initial_limit"`
 	SmoothingFactor        float32       `yaml:"smoothing_factor"`
 }
 
 // See https://pkg.go.dev/github.com/platinummonkey/go-concurrency-limits@v0.8.0/limit#Gradient2Limit for details on how the gradient2 limit works.
 type Gradient2Config struct {
-	ShortWindowMinDuration time.Duration `yaml:"short_window_min_duration"`
-	ShortWindowMaxDuration time.Duration `yaml:"short_window_max_duration"`
-	ShortWindowMinSamples  uint          `yaml:"short_window_min_samples"`
-	LongWindowSize         uint          `yaml:"long_window_size"`
-	MinLimit               uint          `yaml:"min_limit"`
-	MaxLimit               uint          `yaml:"max_limit"`
-	InitialLimit           uint          `yaml:"initial_limit"`
-	SmoothingFactor        float32       `yaml:"smoothing_factor"`
+	MinLimit     uint `yaml:"min_limit"`
+	MaxLimit     uint `yaml:"max_limit"`
+	InitialLimit uint `yaml:"initial_limit"`
+
+	RecentWindowMinDuration time.Duration `yaml:"recent_window_min_duration"`
+	RecentWindowMaxDuration time.Duration `yaml:"recent_window_max_duration"`
+	RecentWindowMinSamples  uint          `yaml:"recent_window_min_samples"`
+	BaselineWindowAge       uint          `yaml:"baseline_window_age"`
+	SmoothingFactor         float32       `yaml:"smoothing_factor"`
 }

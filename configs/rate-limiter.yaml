@@ -1,0 +1,14 @@
+client:
+  static:
+    rps: 100
+
+server:
+  threads: 12
+  static:
+    - service_time: 50ms
+
+strategies:
+  - name: rate limiter
+    client_policies:
+      - ratelimiter:
+          rps: 200
