@@ -6,13 +6,46 @@ A tool for testing system resilience strategies.
 
 ## Motivation
 
-The goal of Tripwire is to help you understand how different resilience strategies such as timeouts, bulkheads, circuit breakers, rate limiters, and various adaptive limiter implementations compare to each other for different workloads and configurations.
+The goal of Tripwire is to help you understand how different resilience strategies such as timeouts, adaptive limiters, circuit breakers, bulkheads, and rate limiters compare to each other for different workloads and configurations.
 
 ## How it Works
 
 Tripwire performs client/server load simulations based on some configuration, which includes request rates, service times, and server threads. Resilience strategies can be configured on the cient or server sides to handle overload, and are provided by [Failsafe-go](https://failsafe-go.dev) and [go-concurrency-limits](https://github.com/platinummonkey/go-concurrency-limits). Workloads and strategies can be run sequentially or in parallel to understand how they compare, and load can adjusted manually if desired.
 
-## Stages
+## Quickstart
+
+Try see Tripwire in action, first build the binary:
+
+```sh
+make
+```
+
+Then run it with a config file, containing a workload:
+
+```sh
+./tripwire run configs/adaptive.yaml
+```
+
+To observe the limiter, fire up a docker-compose stack containing Prometheus and Grafana:
+
+```sh
+docker compose -f deployments/docker-compose.yml up
+```
+
+Then open the Grafana dashboard at [http://localhost:3000](). You can then adjust the workload, triggering an overload:
+
+```sh
+curl -X POST http://localhost:9095/client/workloads --data-binary @- <<'EOF'
+- name: writes
+  rps: 100
+  service_times:
+    - service_time: 200ms
+EOF
+```
+
+## Config
+
+### Stages
 
 Clients can send requests in one or more stages, which are performed sequentially, and last for some duration. Each stage contains a weighted distribution of service times from which the simulated servicing of each request will be selected, based on weights, which are optional.
 
@@ -69,7 +102,7 @@ strategies:
 
 See the [policy config definitions](https://github.com/jhalterman/tripwire/blob/main/pkg/policy/config.go) for more on their options, and see the [configs](configs) directory for complete example configs.
 
-## Workloads
+### Workloads
 
 While stages are executed sequentially, workloads are executed in parallel, run indefinitely, and can be adjusted via a REST API. Example client config with workloads:
 
@@ -105,7 +138,7 @@ EOF
 
 When using workloads, Tripwire will run through any specified strategies *in parallel*. This allows you to observe the impact of load changes on multiple strategies at the same time, which can be individually selected on the [Tripwire dashboard](#dashboard).
 
-## Server Threads
+### Server Threads
 
 To dynamically adjust server capacity, simulating a system degredation, you can use a REST API:
 
@@ -113,20 +146,6 @@ To dynamically adjust server capacity, simulating a system degredation, you can 
 curl -X POST http://localhost:9095/server --data-binary @- <<'EOF'
 threads: 8
 EOF
-```
-
-## Running
-
-To run Tripwire, first build the binary:
-
-```sh
-make
-```
-
-Then run it with some config file:
-
-```sh
-./tripwire run overload.yaml
 ```
 
 ## Dashboard
@@ -139,7 +158,7 @@ It also includes a summary of how runs for different strategies compare:
 
 ![runs](./docs/images/runs.png)
 
-When [manually testing](#manual-testing), you can select a specific strategy to view results for:
+When running multiple workloads, you can select a specific strategy to view results for:
 
 ![strategy](./docs/images/strategy.png)
 
