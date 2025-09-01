@@ -1,4 +1,4 @@
-# Compares the Failsafe-go adaptive limiter to the go-concurrency-limits limiters.
+# Demonstrates prioritization of requests during overload.
 
 client:
   prioritize: true
