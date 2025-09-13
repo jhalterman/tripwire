@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/failsafe-go/failsafe-go/adaptivelimiter"
+	"github.com/failsafe-go/failsafe-go/adaptivethrottler"
+	"github.com/failsafe-go/failsafe-go/priority"
 	"go.uber.org/zap"
 	"go.uber.org/zap/exp/zapslog"
 	"go.uber.org/zap/zapcore"
@@ -89,16 +91,20 @@ func startClientAndServer(logger *zap.SugaredLogger, config *Config, strategy *S
 	wg.Add(1)
 	go aServer.Start(wg)
 
-	// Create a prioritizer if configuration is provided
-	var prioritizer adaptivelimiter.Prioritizer
+	// Create prioritizers if configuration is provided
+	var limiterPrioritizer, throttlerPrioritizer priority.Prioritizer
 	if config.Client.Prioritize && len(config.Client.Workloads) > 1 {
-		prioritizer = adaptivelimiter.NewPrioritizerBuilder(). // time.Second, 2*time.Second
+		limiterPrioritizer = adaptivelimiter.NewPrioritizerBuilder().
 			WithLogger(slog.New(zapslog.NewHandler(logger.Desugar().Core()))).
 			Build()
-		prioritizer.ScheduleCalibrations(context.Background(), 500*time.Millisecond)
+		limiterPrioritizer.ScheduleCalibrations(context.Background(), 500*time.Millisecond)
+		throttlerPrioritizer = adaptivethrottler.NewPrioritizerBuilder().
+			WithLogger(slog.New(zapslog.NewHandler(logger.Desugar().Core()))).
+			Build()
+		throttlerPrioritizer.ScheduleCalibrations(context.Background(), 500*time.Millisecond)
 	}
 
-	clientExecutors, minClientTimeout := strategy.ClientPolicies.ToExecutors(strategy.Name, config.Client.Workloads, metrics, strategyMetrics, prioritizer, logger.Desugar())
+	clientExecutors, minClientTimeout := strategy.ClientPolicies.ToExecutors(strategy.Name, config.Client.ShareStrategies, config.Client.Stages, config.Client.Workloads, metrics, strategyMetrics, limiterPrioritizer, throttlerPrioritizer, logger.Desugar())
 	aClient := client.NewClient(addr, config.Client, runID, strategy.Name, metrics, clientExecutors, logger)
 	strategyMetrics.MinTimeout.Set(minClientTimeout.Seconds())
 	wg.Add(1)

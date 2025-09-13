@@ -1,0 +1,27 @@
+# Demonstrates a Failsafe-go adaptive limiter with queueing, using a workload that can be adjusted via the REST API
+
+client:
+  workloads:
+    - name: writes
+      rps: 100
+      service_times:
+        - service_time: 50ms
+
+server:
+  threads: 12
+
+strategies:
+  - name: adaptivelimiter
+    client_policies:
+      - adaptivelimiter:
+          min_limit: 2
+          max_limit: 150
+          initial_limit: 20
+          max_limit_factor: 5
+          recent_window_min_duration: 1s
+          recent_window_max_duration: 1s
+          recent_window_min_samples: 10
+          baseline_window_age: 60
+          correlation_window_size: 20
+          initial_rejection_factor: 2
+          max_rejection_factor: 3

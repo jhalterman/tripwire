@@ -1,7 +1,15 @@
+# Demonstrates a Failsafe-go adaptive limiter with queueing, using stages
+
 client:
-  workloads:
-    - name: writes
+  stages:
+    - duration: 20s
       rps: 100
+      service_times:
+        - service_time: 50ms
+    - duration: 2m
+      service_times:
+        - service_time: 150ms
+    - duration: 30s
       service_times:
         - service_time: 50ms
 

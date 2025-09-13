@@ -1,27 +1,27 @@
-# Demonstrates prioritization of requests during overload.
+# Demonstrates a Failsafe-go prioritized adaptive limiter, using workloads that can be adjusted via the REST API
 
 client:
   prioritize: true
+#  share_strategies: true # Use a single adaptive limiter across both workloads
 
   workloads:
     - name: writes
-      rps: 100
-      priority: 3
+      rps: 10
+      priority: 4
       service_times:
-        - service_time: 50ms
+        - service_time: 1000ms
 
     - name: reads
       rps: 10
-      priority: 1
+      priority: 0
       service_times:
-        - service_time: 100ms
+        - service_time: 1000ms
 
 server:
   threads: 12
 
 strategies:
   - name: adaptivelimiter
-    # TODO move to server
     client_policies:
       - adaptivelimiter:
           min_limit: 2

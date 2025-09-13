@@ -14,42 +14,38 @@ Tripwire performs client/server load simulations based on some configuration, wh
 
 ## Quickstart
 
-Try see Tripwire in action, first build the binary:
-
-```sh
-make
-```
-
-Then run it with a config file, containing a workload:
-
-```sh
-./tripwire run configs/adaptive.yaml
-```
-
-To observe the limiter, fire up a docker-compose stack containing Prometheus and Grafana:
+To observe a Tripwire run, fire up a docker-compose stack containing Prometheus and Grafana:
 
 ```sh
 docker compose -f deployments/docker-compose.yml up
 ```
 
-Then open the Grafana dashboard at [http://localhost:3000](). You can then adjust the workload, triggering an overload:
+Then open the Grafana dashboard at [http://localhost:3000](). To perform a run, first build the binary:
 
 ```sh
-curl -X POST http://localhost:9095/client/workloads --data-binary @- <<'EOF'
-- name: writes
-  rps: 100
-  service_times:
-    - service_time: 200ms
-EOF
+make
 ```
+
+Then run a config file, such as a staged adaptivelimiter:
+
+```sh
+./tripwire run adaptivelimiter-staged.yaml
+```
+
+The dashboard will show the simulation stages as they progress through some initial load, overload, and then back to normal again.
 
 ## Config
 
+Tripwire configuration supports two ways of running a simulation:
+
+- Stages, which run sequentially and last for some duration
+- Workloads, which run in parallel and can be adjusted via a REST API
+
+Stages are good for comparing how different policies and configurations compare, in terms of performance, to the same sequence of staged loads. Workloads are good for experimenting with different loads and observing how strategies behave, since they can be tweaked at runtime via the REST API.
+
 ### Stages
 
-Clients can send requests in one or more stages, which are performed sequentially, and last for some duration. Each stage contains a weighted distribution of service times from which the simulated servicing of each request will be selected, based on weights, which are optional.
-
-This allows load on a server to be gradually increased or decreased over time. Example client config with stages:
+Stages contains a weighted distribution of service times from which the simulated servicing of each request will be selected, based on weights, which are optional. Stages allow load on a server to be gradually increased or decreased throughout a simulation. Example client config with stages:
 
 ```yaml
 client:
@@ -136,7 +132,7 @@ curl -X POST http://localhost:9095/client/workloads --data-binary @- <<'EOF'
 EOF
 ```
 
-When using workloads, Tripwire will run through any specified strategies *in parallel*. This allows you to observe the impact of load changes on multiple strategies at the same time, which can be individually selected on the [Tripwire dashboard](#dashboard).
+Some example requests are also available in a [Bruno collection](https://github.com/jhalterman/tripwire/blob/main/bruno/tripwire.json). When using workloads, Tripwire will run through any specified strategies *in parallel*. This allows you to observe the impact of load changes on multiple strategies at the same time, which can be individually selected on the [Tripwire dashboard](#dashboard).
 
 ### Server Threads
 
@@ -154,18 +150,10 @@ To observe how strategies perform in terms of request rates, queueing, concurren
 
 ![metrics](./docs/images/metrics.png)
 
-It also includes a summary of how runs for different strategies compare:
+It also includes a summary of how runs for different strategies compare, including a score, which compares success rates and latencies between strategies:
 
 ![runs](./docs/images/runs.png)
 
 When running multiple workloads, you can select a specific strategy to view results for:
 
 ![strategy](./docs/images/strategy.png)
-
-To start up Grafana and gather metrics from Tripwire:
-
-```sh
-docker compose -f deployments/docker-compose.yml up
-```
-
-Then you can run simulations and observe them in Grafana: <http://localhost:3000>.

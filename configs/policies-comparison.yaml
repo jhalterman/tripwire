@@ -1,3 +1,5 @@
+# Compares different Failsafe-go load limiting policies, using stages
+
 client:
   stages:
     - duration: 20s

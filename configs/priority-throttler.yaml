@@ -1,0 +1,30 @@
+# Demonstrates a Failsafe-go prioritized adaptive throttler, using workloads that can be adjusted via the REST API
+
+client:
+  prioritize: true
+ # share_strategies: true # Use a single adaptive throttler across both workloads
+
+  workloads:
+    - name: writes
+      rps: 100
+      priority: 4
+      service_times:
+        - service_time: 75ms
+
+    - name: reads
+      rps: 100
+      priority: 0
+      service_times:
+        - service_time: 75ms
+server:
+  threads: 12
+
+strategies:
+  - name: client adaptivethrottler and timeout
+    client_policies:
+      - adaptivethrottler:
+          failure_rate_threshold: .1
+          thresholding_period: 15s
+          max_rejection_rate: .95
+      # Timeouts are used to drive the adaptivethrottler
+      - timeout: 5s

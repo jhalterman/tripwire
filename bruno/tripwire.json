@@ -1,0 +1,299 @@
+{
+  "name": "Tripwire",
+  "version": "1",
+  "items": [
+    {
+      "type": "http",
+      "name": "Set Server config",
+      "filename": "Set Server config.bru",
+      "seq": 4,
+      "settings": {},
+      "tags": [],
+      "request": {
+        "url": "http://localhost:9095/server",
+        "method": "POST",
+        "headers": [
+          {
+            "name": "Content-Type",
+            "value": "application/yaml",
+            "enabled": true
+          }
+        ],
+        "params": [],
+        "body": {
+          "mode": "text",
+          "text": "threads: 8",
+          "formUrlEncoded": [],
+          "multipartForm": [],
+          "file": []
+        },
+        "script": {},
+        "vars": {},
+        "assertions": [],
+        "tests": "",
+        "docs": "",
+        "auth": {
+          "mode": "none"
+        }
+      }
+    },
+    {
+      "type": "folder",
+      "name": "Single workload",
+      "filename": "Single workload",
+      "seq": 2,
+      "root": {
+        "request": {
+          "auth": {
+            "mode": "inherit"
+          }
+        },
+        "meta": {
+          "name": "Single workload",
+          "seq": 2
+        }
+      },
+      "items": [
+        {
+          "type": "http",
+          "name": "Set Client workload",
+          "filename": "Set Client workload.bru",
+          "seq": 2,
+          "settings": {},
+          "tags": [],
+          "request": {
+            "url": "http://localhost:9095/client/workloads",
+            "method": "POST",
+            "headers": [
+              {
+                "name": "Content-Type",
+                "value": "application/yaml",
+                "enabled": true
+              }
+            ],
+            "params": [],
+            "body": {
+              "mode": "text",
+              "text": "- name: writes\n  rps: 100\n  service_times:\n    - service_time: 50ms",
+              "formUrlEncoded": [],
+              "multipartForm": [],
+              "file": []
+            },
+            "script": {},
+            "vars": {},
+            "assertions": [],
+            "tests": "",
+            "docs": "",
+            "auth": {
+              "mode": "none"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "folder",
+      "name": "Multiple workloads",
+      "filename": "Multiple workloads",
+      "seq": 3,
+      "root": {
+        "request": {
+          "auth": {
+            "mode": "inherit"
+          }
+        },
+        "meta": {
+          "name": "Multiple workloads",
+          "seq": 3
+        }
+      },
+      "items": [
+        {
+          "type": "http",
+          "name": "Set Client workloads",
+          "filename": "Set Client workloads.bru",
+          "seq": 5,
+          "settings": {},
+          "tags": [],
+          "request": {
+            "url": "http://localhost:9095/client/workloads",
+            "method": "POST",
+            "headers": [
+              {
+                "name": "Content-Type",
+                "value": "application/yaml",
+                "enabled": true
+              }
+            ],
+            "params": [],
+            "body": {
+              "mode": "text",
+              "text": "- name: writes\n  rps: 100\n  priority: 3\n  service_times:\n    - service_time: 120ms\n\n- name: reads\n  rps: 10\n  priority: 1\n  service_times:\n    - service_time: 10ms",
+              "formUrlEncoded": [],
+              "multipartForm": [],
+              "file": []
+            },
+            "script": {},
+            "vars": {},
+            "assertions": [],
+            "tests": "",
+            "docs": "",
+            "auth": {
+              "mode": "none"
+            }
+          }
+        },
+        {
+          "type": "http",
+          "name": "Write overload",
+          "filename": "Write overload.bru",
+          "seq": 1,
+          "settings": {},
+          "tags": [],
+          "request": {
+            "url": "http://localhost:9095/client/workloads",
+            "method": "POST",
+            "headers": [
+              {
+                "name": "Content-Type",
+                "value": "application/yaml",
+                "enabled": true
+              }
+            ],
+            "params": [],
+            "body": {
+              "mode": "text",
+              "text": "- name: writes\n  rps: 100\n  priority: 3\n  service_times:\n    - service_time: 150ms\n\n- name: reads\n  rps: 10\n  priority: 1\n  service_times:\n    - service_time: 10ms",
+              "formUrlEncoded": [],
+              "multipartForm": [],
+              "file": []
+            },
+            "script": {},
+            "vars": {},
+            "assertions": [],
+            "tests": "",
+            "docs": "",
+            "auth": {
+              "mode": "none"
+            }
+          }
+        },
+        {
+          "type": "http",
+          "name": "Read overload",
+          "filename": "Read overload.bru",
+          "seq": 2,
+          "settings": {},
+          "tags": [],
+          "request": {
+            "url": "http://localhost:9095/client/workloads",
+            "method": "POST",
+            "headers": [
+              {
+                "name": "Content-Type",
+                "value": "application/yaml",
+                "enabled": true
+              }
+            ],
+            "params": [],
+            "body": {
+              "mode": "text",
+              "text": "- name: writes\n  rps: 100\n  priority: 3\n  service_times:\n    - service_time: 50ms\n\n- name: reads\n  rps: 100\n  priority: 1\n  service_times:\n    - service_time: 150ms",
+              "formUrlEncoded": [],
+              "multipartForm": [],
+              "file": []
+            },
+            "script": {},
+            "vars": {},
+            "assertions": [],
+            "tests": "",
+            "docs": "",
+            "auth": {
+              "mode": "none"
+            }
+          }
+        },
+        {
+          "type": "http",
+          "name": "Large read overload",
+          "filename": "Large read overload.bru",
+          "seq": 3,
+          "settings": {},
+          "tags": [],
+          "request": {
+            "url": "http://localhost:9095/client/workloads",
+            "method": "POST",
+            "headers": [
+              {
+                "name": "Content-Type",
+                "value": "application/yaml",
+                "enabled": true
+              }
+            ],
+            "params": [],
+            "body": {
+              "mode": "text",
+              "text": "- name: writes\n  rps: 100\n  priority: 3\n  service_times:\n    - service_time: 50ms\n\n- name: reads\n  rps: 100\n  priority: 1\n  service_times:\n    - service_time: 250ms\n",
+              "formUrlEncoded": [],
+              "multipartForm": [],
+              "file": []
+            },
+            "script": {},
+            "vars": {},
+            "assertions": [],
+            "tests": "",
+            "docs": "",
+            "auth": {
+              "mode": "none"
+            }
+          }
+        },
+        {
+          "type": "http",
+          "name": "Read and write overload",
+          "filename": "Read and write overload.bru",
+          "seq": 4,
+          "settings": {},
+          "tags": [],
+          "request": {
+            "url": "http://localhost:9095/client/workloads",
+            "method": "POST",
+            "headers": [
+              {
+                "name": "Content-Type",
+                "value": "application/yaml",
+                "enabled": true
+              }
+            ],
+            "params": [],
+            "body": {
+              "mode": "text",
+              "text": "- name: writes\n  rps: 100\n  priority: 3\n  service_times:\n    - service_time: 50ms\n\n- name: reads\n  rps: 100\n  priority: 1\n  service_times:\n    - service_time: 150ms",
+              "formUrlEncoded": [],
+              "multipartForm": [],
+              "file": []
+            },
+            "script": {},
+            "vars": {},
+            "assertions": [],
+            "tests": "",
+            "docs": "",
+            "auth": {
+              "mode": "none"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "environments": [],
+  "brunoConfig": {
+    "version": "1",
+    "name": "Tripwire",
+    "type": "collection",
+    "ignore": [
+      "node_modules",
+      ".git"
+    ]
+  }
+}

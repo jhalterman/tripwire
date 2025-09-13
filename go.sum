@@ -8,6 +8,8 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/failsafe-go/failsafe-go v0.6.10-0.20250831233636-c02ebde1f469 h1:vdIxlNjWt/4+jgwbBgbBx/MIyeU8xQMiBGS9egaNmU0=
 github.com/failsafe-go/failsafe-go v0.6.10-0.20250831233636-c02ebde1f469/go.mod h1:qkYFeHT1f1V/LRd995f++Ypn90nAMcAuBM/bAYQePvY=
+github.com/failsafe-go/failsafe-go v0.7.1-0.20250913033033-e9f0d952e970 h1:PYvcEPZTwIYoJp6NIjlkSJEO20ZNI6h4tjGbL+YISMY=
+github.com/failsafe-go/failsafe-go v0.7.1-0.20250913033033-e9f0d952e970/go.mod h1:qkYFeHT1f1V/LRd995f++Ypn90nAMcAuBM/bAYQePvY=
 github.com/google/go-cmp v0.2.0/go.mod h1:oXzfMopK8JAjlY9xF4vHSVASa0yLyX7SntLO5aqRK0M=
 github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
 github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=

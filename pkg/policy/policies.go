@@ -7,8 +7,12 @@ import (
 
 	"github.com/failsafe-go/failsafe-go"
 	"github.com/failsafe-go/failsafe-go/adaptivelimiter"
+	"github.com/failsafe-go/failsafe-go/adaptivethrottler"
+	"github.com/failsafe-go/failsafe-go/priority"
+
 	"github.com/failsafe-go/failsafe-go/bulkhead"
 	"github.com/failsafe-go/failsafe-go/circuitbreaker"
+
 	"github.com/failsafe-go/failsafe-go/ratelimiter"
 	"github.com/failsafe-go/failsafe-go/timeout"
 	"go.uber.org/zap"
@@ -27,7 +31,7 @@ func (c *Config) UnmarshalYAML(value *yaml.Node) error {
 	return value.Decode(tmp)
 }
 
-func (c *Config) ToPolicy(metrics *metrics.Metrics, strategyMetrics *metrics.StrategyMetrics, prioritizer adaptivelimiter.Prioritizer, workload, strategy string, logger *zap.Logger) failsafe.Policy[*http.Response] {
+func (c *Config) ToPolicy(metrics *metrics.Metrics, strategyMetrics *metrics.StrategyMetrics, limiterPrioritizer priority.Prioritizer, throttlerPrioritizer priority.Prioritizer, workload, strategy string, logger *zap.Logger) failsafe.Policy[*http.Response] {
 	slogger := slog.New(zapslog.NewHandler(logger.Core()))
 	limitChangedListener := func(e adaptivelimiter.LimitChangedEvent) {
 		metrics.WithConcurrencyLimit(workload, strategy).Set(float64(e.NewLimit))
@@ -78,27 +82,39 @@ func (c *Config) ToPolicy(metrics *metrics.Metrics, strategyMetrics *metrics.Str
 			}).
 			Build()
 	} else if c.AdaptiveLimiterConfig != nil {
-		pc := c.AdaptiveLimiterConfig
-		metrics.WithConcurrencyLimit(workload, strategy).Set(float64(pc.InitialLimit))
+		lc := c.AdaptiveLimiterConfig
+		metrics.WithConcurrencyLimit(workload, strategy).Set(float64(lc.InitialLimit))
 		// log := slog.New(zapslog.NewHandler(logger.Core()))
 		builder := adaptivelimiter.NewBuilder[*http.Response]().
-			WithLimits(pc.MinLimit, pc.MaxLimit, pc.InitialLimit).
-			WithMaxLimitFactor(pc.MaxLimitFactor).
-			WithRecentWindow(pc.RecentWindowMinDuration, pc.RecentWindowMaxDuration, pc.RecentWindowMinSamples).
-			WithRecentQuantile(pc.RecentQuantile).
-			WithBaselineWindow(pc.BaselineWindowAge).
-			WithCorrelationWindow(pc.CorrelationWindowSize).
+			WithLimits(lc.MinLimit, lc.MaxLimit, lc.InitialLimit).
+			WithMaxLimitFactor(lc.MaxLimitFactor).
+			WithRecentWindow(lc.RecentWindowMinDuration, lc.RecentWindowMaxDuration, lc.RecentWindowMinSamples).
+			WithRecentQuantile(lc.RecentQuantile).
+			WithBaselineWindow(lc.BaselineWindowAge).
+			WithCorrelationWindow(lc.CorrelationWindowSize).
 			//WithLogger(log).
 			OnLimitChanged(func(e adaptivelimiter.LimitChangedEvent) {
 				metrics.WithConcurrencyLimit(workload, strategy).Set(float64(e.NewLimit))
 			})
-		if pc.InitialRejectionFactor > 0 && pc.MaxRejectionFactor > 0 {
-			builder.WithQueueing(pc.InitialRejectionFactor, pc.MaxRejectionFactor)
+		if lc.InitialRejectionFactor > 0 && lc.MaxRejectionFactor > 0 {
+			builder.WithQueueing(lc.InitialRejectionFactor, lc.MaxRejectionFactor)
 		}
-		if prioritizer != nil {
+		if limiterPrioritizer != nil {
 			return builder.
 				// WithLogger(log.With("workload", workload)).
-				BuildPrioritized(prioritizer)
+				BuildPrioritized(limiterPrioritizer)
+		} else {
+			return builder.Build()
+		}
+	} else if c.AdaptiveThrottlerConfig != nil {
+		tc := c.AdaptiveThrottlerConfig
+		builder := adaptivethrottler.NewBuilder[*http.Response]().
+			WithFailureRateThreshold(tc.FailureRateThreshold, tc.ThresholdingPeriod).
+			WithMaxRejectionRate(tc.MaxRejectionRate)
+		if throttlerPrioritizer != nil {
+			return builder.
+				// WithLogger(log.With("workload", workload)).
+				BuildPrioritized(throttlerPrioritizer)
 		} else {
 			return builder.Build()
 		}
@@ -116,14 +132,19 @@ func (c *Config) ToPolicy(metrics *metrics.Metrics, strategyMetrics *metrics.Str
 	return nil
 }
 
-func (c Configs) ToExecutors(strategy string, Workloads []*client.Workload, metrics *metrics.Metrics, strategyMetrics *metrics.StrategyMetrics, prioritizer adaptivelimiter.Prioritizer, logger *zap.Logger) (map[string]failsafe.Executor[*http.Response], time.Duration) {
+func (c Configs) ToExecutors(strategy string, shareStrategies bool, stages []*client.Stage, workloads []*client.Workload, metrics *metrics.Metrics, strategyMetrics *metrics.StrategyMetrics, limiterPrioritizer priority.Prioritizer, throttlerPrioritizer priority.Prioritizer, logger *zap.Logger) (map[string]failsafe.Executor[*http.Response], time.Duration) {
 	var minTimeout time.Duration
 	var onDoneFuncs []func()
 	workloadExecutors := make(map[string]failsafe.Executor[*http.Response])
 
-	for _, workload := range Workloads {
+	buildPolicies := func(name string) []failsafe.Policy[*http.Response] {
+		metrics.WithThrottleProbability(name, strategy).Set(0)
+
 		var policies []failsafe.Policy[*http.Response]
 		for _, config := range c {
+			policy := config.ToPolicy(metrics, strategyMetrics, limiterPrioritizer, throttlerPrioritizer, name, strategy, logger)
+			policies = append(policies, policy)
+
 			if config.Timeout != 0 {
 				policyTimeout := config.Timeout
 				if minTimeout == 0 {
@@ -132,26 +153,42 @@ func (c Configs) ToExecutors(strategy string, Workloads []*client.Workload, metr
 					minTimeout = min(minTimeout, policyTimeout)
 				}
 			} else if config.AdaptiveLimiterConfig != nil {
-				policy := config.ToPolicy(metrics, strategyMetrics, prioritizer, workload.Name, strategy, logger)
-				policies = append(policies, policy)
-				workloadName := workload.Name
 				onDoneFuncs = append(onDoneFuncs, func() {
 					p := policy.(adaptivelimiter.Metrics)
-					metrics.WithConcurrencyLimit(workloadName, strategy).Set(float64(p.Limit()))
-					metrics.WithQueueWorkload(workloadName, strategy).Set(float64(p.Queued()))
-					// metrics.WithThrottleProbability(workloadName, strategy).Set(p.RejectionRate())
+					metrics.WithConcurrencyLimit(name, strategy).Set(float64(p.Limit()))
+					metrics.WithQueueWorkload(name, strategy).Set(float64(p.Queued()))
 				})
-			} else {
-				policy := config.ToPolicy(metrics, strategyMetrics, prioritizer, workload.Name, strategy, logger)
-				policies = append(policies, policy)
+			} else if config.AdaptiveThrottlerConfig != nil {
+				onDoneFuncs = append(onDoneFuncs, func() {
+					p := policy.(adaptivethrottler.Metrics)
+					metrics.WithThrottleProbability(name, strategy).Set(p.RejectionRate())
+				})
 			}
 		}
+		return policies
+	}
 
-		workloadExecutors[workload.Name] = failsafe.NewExecutor(policies...).OnDone(func(e failsafe.ExecutionDoneEvent[*http.Response]) {
+	buildWorkloads := func(workload string, policies []failsafe.Policy[*http.Response]) {
+		workloadExecutors[workload] = failsafe.NewExecutor(policies...).OnDone(func(e failsafe.ExecutionDoneEvent[*http.Response]) {
 			for _, onDoneFunc := range onDoneFuncs {
 				onDoneFunc()
 			}
 		})
+	}
+
+	if len(stages) > 0 {
+		buildWorkloads("staged", buildPolicies("staged"))
+	} else {
+		if shareStrategies {
+			policies := buildPolicies("shared")
+			for _, workload := range workloads {
+				buildWorkloads(workload.Name, policies)
+			}
+		} else {
+			for _, workload := range workloads {
+				buildWorkloads(workload.Name, buildPolicies(workload.Name))
+			}
+		}
 	}
 
 	return workloadExecutors, minTimeout

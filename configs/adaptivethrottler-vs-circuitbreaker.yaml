@@ -1,0 +1,37 @@
+# Compares a Failsafe-go adaptive throttler and circuit breaker, using stages
+
+client:
+  stages:
+    - duration: 20s
+      rps: 100
+      service_times:
+        - service_time: 50ms
+    - duration: 1m
+      service_times:
+        - service_time: 150ms
+    - duration: 20s
+      service_times:
+        - service_time: 50ms
+
+server:
+  threads: 12
+
+strategies:
+  - name: adaptivethrottler and timeout
+    client_policies:
+      - adaptivethrottler:
+          failure_rate_threshold: .1
+          thresholding_period: 30s
+          max_rejection_rate: .5
+      # Timeouts are used to drive the adaptivethrottler
+      - timeout: 5s
+
+  - name: circuitbreaker and timeout
+    client_policies:
+      - circuitbreaker:
+          failure_rate_threshold: 10
+          failure_execution_threshold: 100
+          failure_thresholding_period: 10s
+          delay: 5s
+      # Timeouts are used to drive the circuitbreaker
+      - timeout: 5s

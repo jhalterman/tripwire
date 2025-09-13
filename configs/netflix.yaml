@@ -1,4 +1,4 @@
-# Re-creates the overload situation shown in the Netflix Performance Under Load article
+# Re-creates the overload situation shown in the Netflix Performance Under Load article, using stages
 # https://netflixtechblog.medium.com/performance-under-load-3e6fa9a60581
 
 client:

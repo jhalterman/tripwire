@@ -1,0 +1,22 @@
+# Demonstrates a Failsafe-go adaptive throttler, using workloads that can be adjusted via the REST API
+
+client:
+  workloads:
+    - name: writes
+      rps: 100
+      service_times:
+        - service_time: 50ms
+
+server:
+  threads: 12
+
+strategies:
+  - name: client circuitbreaker and timeout
+    client_policies:
+      - circuitbreaker:
+          failure_rate_threshold: 10
+          failure_execution_threshold: 100
+          failure_thresholding_period: 10s
+          delay: 5s
+      # Timeouts are used to drive the circuitbreaker
+      - timeout: 5s

@@ -13,10 +13,13 @@ import (
 
 	"github.com/failsafe-go/failsafe-go"
 	"github.com/failsafe-go/failsafe-go/adaptivelimiter"
+	"github.com/failsafe-go/failsafe-go/adaptivethrottler"
+	"github.com/failsafe-go/failsafe-go/priority"
+
 	"github.com/failsafe-go/failsafe-go/bulkhead"
 	"github.com/failsafe-go/failsafe-go/circuitbreaker"
 	"github.com/failsafe-go/failsafe-go/failsafehttp"
-	"github.com/failsafe-go/failsafe-go/priority"
+
 	"github.com/failsafe-go/failsafe-go/ratelimiter"
 	"github.com/failsafe-go/failsafe-go/timeout"
 	"go.uber.org/zap"
@@ -28,7 +31,8 @@ import (
 )
 
 type Config struct {
-	Prioritize bool `yaml:"prioritize"`
+	Prioritize      bool `yaml:"prioritize"`
+	ShareStrategies bool `yaml:"share_strategies"`
 
 	Workloads   []*Workload `yaml:"workloads"` // workloads run in parallel
 	Stages      []*Stage    `yaml:"stages"`    // stages run in sequence
@@ -155,7 +159,7 @@ func (c *Client) Start(wg *sync.WaitGroup) {
 			c.mtx.Unlock()
 			c.mtx.RLock()
 			for _, workload := range c.config.Workloads {
-				go c.performWorkload(ctx, workload)
+				go c.runWorkload(ctx, workload)
 			}
 			c.mtx.RUnlock()
 			select {
@@ -164,16 +168,14 @@ func (c *Client) Start(wg *sync.WaitGroup) {
 		}
 	} else if c.config.Stages != nil {
 		for _, stage := range c.config.Stages {
-			c.performStage(stage)
+			c.runStage(stage)
 		}
 
 		c.logger.Infow("client stages finished")
 	}
-
-	// c.workloadMetrics.ClientExpectedRps.Set(0)
 }
 
-func (c *Client) performWorkload(ctx context.Context, workload *Workload) {
+func (c *Client) runWorkload(ctx context.Context, workload *Workload) {
 	workloadMetrics := c.metrics.WithWorkload(c.runID, workload.Name, c.strategy)
 	workloadMetrics.ClientReqTimeouts.Add(0)
 
@@ -192,7 +194,7 @@ func (c *Client) performWorkload(ctx context.Context, workload *Workload) {
 
 }
 
-func (c *Client) performStage(stage *Stage) {
+func (c *Client) runStage(stage *Stage) {
 	workloadMetrics := c.metrics.WithWorkload(c.runID, "staged", c.strategy)
 	workloadMetrics.ClientReqTimeouts.Add(0)
 
@@ -237,7 +239,11 @@ func (c *Client) sendRequest(workload string, workloadMetrics *metrics.WorkloadM
 	// Handle errors
 	if err != nil {
 		// Handle rejections
-		if errors.Is(err, ratelimiter.ErrExceeded) || errors.Is(err, adaptivelimiter.ErrExceeded) || errors.Is(err, bulkhead.ErrFull) || errors.Is(err, circuitbreaker.ErrOpen) {
+		if errors.Is(err, ratelimiter.ErrExceeded) ||
+			errors.Is(err, adaptivelimiter.ErrExceeded) ||
+			errors.Is(err, adaptivethrottler.ErrExceeded) ||
+			errors.Is(err, bulkhead.ErrFull) ||
+			errors.Is(err, circuitbreaker.ErrOpen) {
 			// Do not record response time for rejected requests
 			workloadMetrics.ClientReqRejected.Inc()
 		}
