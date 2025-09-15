@@ -6,16 +6,16 @@ client:
 
   workloads:
     - name: writes
-      rps: 10
+      rps: 100
       priority: 4
       service_times:
-        - service_time: 1000ms
+        - service_time: 100ms
 
     - name: reads
-      rps: 10
+      rps: 100
       priority: 0
       service_times:
-        - service_time: 1000ms
+        - service_time: 100ms
 
 server:
   threads: 12

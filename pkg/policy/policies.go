@@ -109,7 +109,7 @@ func (c *Config) ToPolicy(metrics *metrics.Metrics, strategyMetrics *metrics.Str
 	} else if c.AdaptiveThrottlerConfig != nil {
 		tc := c.AdaptiveThrottlerConfig
 		builder := adaptivethrottler.NewBuilder[*http.Response]().
-			WithFailureRateThreshold(tc.FailureRateThreshold, tc.ThresholdingPeriod).
+			WithFailureRateThreshold(tc.FailureRateThreshold, tc.ExecutionThreshold, tc.ThresholdingPeriod).
 			WithMaxRejectionRate(tc.MaxRejectionRate)
 		if throttlerPrioritizer != nil {
 			return builder.

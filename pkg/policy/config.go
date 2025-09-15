@@ -44,7 +44,7 @@ type CircuitBreakerConfig struct {
 	Delay time.Duration `yaml:"delay"`
 
 	FailureThreshold            uint          `yaml:"failure_threshold"`
-	FailureRateThreshold        uint          `yaml:"failure_rate_threshold"`
+	FailureRateThreshold        float64       `yaml:"failure_rate_threshold"`
 	FailureThresholdingCapacity uint          `yaml:"failure_thresholding_capacity"`
 	FailureExecutionThreshold   uint          `yaml:"failure_execution_threshold"`
 	FailureThresholdingPeriod   time.Duration `yaml:"failure_thresholding_period"`
@@ -76,6 +76,7 @@ type AdaptiveLimiterConfig struct {
 type AdaptiveThrottlerConfig struct {
 	FailureRateThreshold float64       `yaml:"failure_rate_threshold"`
 	ThresholdingPeriod   time.Duration `yaml:"thresholding_period"`
+	ExecutionThreshold   uint          `yaml:"execution_threshold"`
 	MaxRejectionRate     float64       `yaml:"max_rejection_rate"`
 }
 

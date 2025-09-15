@@ -825,7 +825,7 @@
             "uid": "prometheus_uid"
           },
           "editorMode": "code",
-          "expr": "avg(server_inflight_requests{strategy=~\"$strategy\", workload=~\"$workload\"})",
+          "expr": "avg(server_inflight_requests{strategy=~\"$strategy\", workload=\"$workload\"})",
           "format": "time_series",
           "interval": "1s",
           "legendFormat": "Inflight",
@@ -1645,8 +1645,8 @@
       {
         "current": {
           "selected": true,
-          "text": "writes",
-          "value": "writes"
+          "text": "quiet",
+          "value": "quiet"
         },
         "datasource": {
           "type": "prometheus",
@@ -1673,7 +1673,7 @@
     ]
   },
   "time": {
-    "from": "now-2m",
+    "from": "now-1m",
     "to": "now"
   },
   "timepicker": {

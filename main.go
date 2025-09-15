@@ -91,17 +91,34 @@ func startClientAndServer(logger *zap.SugaredLogger, config *Config, strategy *S
 	wg.Add(1)
 	go aServer.Start(wg)
 
+	hasLimiter := false
+	hasThrottler := false
+	for _, pConfig := range strategy.ClientPolicies {
+		if pConfig.AdaptiveLimiterConfig != nil {
+			hasLimiter = true
+		} else if pConfig.AdaptiveThrottlerConfig != nil {
+			hasThrottler = true
+		}
+	}
+
 	// Create prioritizers if configuration is provided
 	var limiterPrioritizer, throttlerPrioritizer priority.Prioritizer
 	if config.Client.Prioritize && len(config.Client.Workloads) > 1 {
-		limiterPrioritizer = adaptivelimiter.NewPrioritizerBuilder().
-			WithLogger(slog.New(zapslog.NewHandler(logger.Desugar().Core()))).
-			Build()
-		limiterPrioritizer.ScheduleCalibrations(context.Background(), 500*time.Millisecond)
-		throttlerPrioritizer = adaptivethrottler.NewPrioritizerBuilder().
-			WithLogger(slog.New(zapslog.NewHandler(logger.Desugar().Core()))).
-			Build()
-		throttlerPrioritizer.ScheduleCalibrations(context.Background(), 500*time.Millisecond)
+		if hasLimiter {
+			lpBuilder := adaptivelimiter.NewPrioritizerBuilder()
+			if config.Client.TrackUsage {
+				lpBuilder = lpBuilder.WithUsageTracker(priority.NewUsageTracker(10, 5*time.Second))
+			}
+			limiterPrioritizer = lpBuilder.WithLogger(slog.New(zapslog.NewHandler(logger.Desugar().Core()))).Build()
+			limiterPrioritizer.ScheduleCalibrations(context.Background(), 500*time.Millisecond)
+		}
+
+		if hasThrottler {
+			throttlerPrioritizer = adaptivethrottler.NewPrioritizerBuilder().
+				WithLogger(slog.New(zapslog.NewHandler(logger.Desugar().Core()))).
+				Build()
+			throttlerPrioritizer.ScheduleCalibrations(context.Background(), 500*time.Millisecond)
+		}
 	}
 
 	clientExecutors, minClientTimeout := strategy.ClientPolicies.ToExecutors(strategy.Name, config.Client.ShareStrategies, config.Client.Stages, config.Client.Workloads, metrics, strategyMetrics, limiterPrioritizer, throttlerPrioritizer, logger.Desugar())

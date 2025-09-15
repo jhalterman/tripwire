@@ -10,6 +10,8 @@ github.com/failsafe-go/failsafe-go v0.6.10-0.20250831233636-c02ebde1f469 h1:vdIx
 github.com/failsafe-go/failsafe-go v0.6.10-0.20250831233636-c02ebde1f469/go.mod h1:qkYFeHT1f1V/LRd995f++Ypn90nAMcAuBM/bAYQePvY=
 github.com/failsafe-go/failsafe-go v0.7.1-0.20250913033033-e9f0d952e970 h1:PYvcEPZTwIYoJp6NIjlkSJEO20ZNI6h4tjGbL+YISMY=
 github.com/failsafe-go/failsafe-go v0.7.1-0.20250913033033-e9f0d952e970/go.mod h1:qkYFeHT1f1V/LRd995f++Ypn90nAMcAuBM/bAYQePvY=
+github.com/failsafe-go/failsafe-go v0.8.1-0.20250915051621-9a93a3e52ef8 h1:uvHRcVHYVZCjnS3PCFkn0zAdXq2Zp7VK/AgBUAw2N6o=
+github.com/failsafe-go/failsafe-go v0.8.1-0.20250915051621-9a93a3e52ef8/go.mod h1:qkYFeHT1f1V/LRd995f++Ypn90nAMcAuBM/bAYQePvY=
 github.com/google/go-cmp v0.2.0/go.mod h1:oXzfMopK8JAjlY9xF4vHSVASa0yLyX7SntLO5aqRK0M=
 github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
 github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=

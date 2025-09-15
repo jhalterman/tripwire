@@ -24,6 +24,7 @@ strategies:
     client_policies:
       - adaptivethrottler:
           failure_rate_threshold: .1
+          execution_threshold: 5
           thresholding_period: 15s
           max_rejection_rate: .95
       # Timeouts are used to drive the adaptivethrottler

@@ -32,6 +32,7 @@ import (
 
 type Config struct {
 	Prioritize      bool `yaml:"prioritize"`
+	TrackUsage      bool `yaml:"track_usage"`
 	ShareStrategies bool `yaml:"share_strategies"`
 
 	Workloads   []*Workload `yaml:"workloads"` // workloads run in parallel
@@ -42,6 +43,7 @@ type Config struct {
 type Workload struct {
 	Name         string               `yaml:"name"`
 	RPS          uint                 `yaml:"rps"`
+	User         string               `yaml:"user"`
 	Priority     priority.Priority    `yaml:"priority"`
 	ServiceTimes WeightedServiceTimes `yaml:"service_times"`
 	WeightSum    int
@@ -188,7 +190,7 @@ func (c *Client) runWorkload(ctx context.Context, workload *Workload) {
 			return
 		case <-ticker.C:
 			workloadMetrics.ClientExpectedRps.Set(float64(workload.RPS))
-			go c.sendRequest(workload.Name, workloadMetrics, workload.ServiceTimes.Random(workload.WeightSum), workload.Priority)
+			go c.sendRequest(workload.Name, workload.User, workloadMetrics, workload.ServiceTimes.Random(workload.WeightSum), workload.Priority)
 		}
 	}
 
@@ -208,12 +210,12 @@ func (c *Client) runStage(stage *Stage) {
 			return
 		case <-ticker.C:
 			workloadMetrics.ClientExpectedRps.Set(float64(stage.RPS))
-			go c.sendRequest("staged", workloadMetrics, stage.ServiceTimes.Random(stage.WeightSum), 0)
+			go c.sendRequest("staged", "", workloadMetrics, stage.ServiceTimes.Random(stage.WeightSum), 0)
 		}
 	}
 }
 
-func (c *Client) sendRequest(workload string, workloadMetrics *metrics.WorkloadMetrics, serviceTime time.Duration, p priority.Priority) {
+func (c *Client) sendRequest(workloadName string, user string, workloadMetrics *metrics.WorkloadMetrics, serviceTime time.Duration, p priority.Priority) {
 	start := time.Now()
 	request := server.Request{ServiceTime: serviceTime}
 	reqBody, err := yaml.Marshal(&request)
@@ -223,12 +225,13 @@ func (c *Client) sendRequest(workload string, workloadMetrics *metrics.WorkloadM
 	}
 
 	ctx := priority.ContextWithPriority(context.Background(), p)
+	ctx = priority.ContextWithUserID(ctx, user)
 	req, err := http.NewRequestWithContext(ctx, "POST", c.serverAddr, bytes.NewBuffer(reqBody))
 	if err != nil {
 		c.logger.Errorw("error creating request", "error", err)
 		return
 	}
-	req.Header.Set(util.WorkloadHeaderId, workload)
+	req.Header.Set(util.WorkloadHeaderId, workloadName)
 	req.Close = true
 
 	workloadMetrics.ClientReqTotal.Inc()

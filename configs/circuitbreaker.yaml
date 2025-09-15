@@ -14,7 +14,7 @@ strategies:
   - name: client circuitbreaker and timeout
     client_policies:
       - circuitbreaker:
-          failure_rate_threshold: 10
+          failure_rate_threshold: .1
           failure_execution_threshold: 100
           failure_thresholding_period: 10s
           delay: 5s
