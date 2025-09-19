@@ -107,7 +107,7 @@ func startClientAndServer(logger *zap.SugaredLogger, config *Config, strategy *S
 		if hasLimiter {
 			lpBuilder := adaptivelimiter.NewPrioritizerBuilder()
 			if config.Client.TrackUsage {
-				lpBuilder = lpBuilder.WithUsageTracker(priority.NewUsageTracker(10, 5*time.Second))
+				lpBuilder = lpBuilder.WithUsageTracker(priority.NewUsageTracker(5*time.Second, 10))
 			}
 			limiterPrioritizer = lpBuilder.WithLogger(slog.New(zapslog.NewHandler(logger.Desugar().Core()))).Build()
 			limiterPrioritizer.ScheduleCalibrations(context.Background(), 500*time.Millisecond)

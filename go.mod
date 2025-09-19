@@ -3,7 +3,7 @@ module tripwire
 go 1.21.0
 
 require (
-	github.com/failsafe-go/failsafe-go v0.8.1-0.20250915051621-9a93a3e52ef8
+	github.com/failsafe-go/failsafe-go v0.8.2
 	github.com/platinummonkey/go-concurrency-limits v0.8.1-0.20241127030159-8fa4836672d5
 	github.com/prometheus/client_golang v1.20.2
 	github.com/stretchr/testify v1.10.0

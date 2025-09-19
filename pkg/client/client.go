@@ -225,7 +225,7 @@ func (c *Client) sendRequest(workloadName string, user string, workloadMetrics *
 	}
 
 	ctx := priority.ContextWithPriority(context.Background(), p)
-	ctx = priority.ContextWithUserID(ctx, user)
+	ctx = priority.ContextWithUser(ctx, user)
 	req, err := http.NewRequestWithContext(ctx, "POST", c.serverAddr, bytes.NewBuffer(reqBody))
 	if err != nil {
 		c.logger.Errorw("error creating request", "error", err)
