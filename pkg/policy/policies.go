@@ -169,7 +169,7 @@ func (c Configs) ToExecutors(strategy string, shareStrategies bool, stages []*cl
 	}
 
 	buildWorkloads := func(workload string, policies []failsafe.Policy[*http.Response]) {
-		workloadExecutors[workload] = failsafe.NewExecutor(policies...).OnDone(func(e failsafe.ExecutionDoneEvent[*http.Response]) {
+		workloadExecutors[workload] = failsafe.With(policies...).OnDone(func(e failsafe.ExecutionDoneEvent[*http.Response]) {
 			for _, onDoneFunc := range onDoneFuncs {
 				onDoneFunc()
 			}

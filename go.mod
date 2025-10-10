@@ -3,7 +3,7 @@ module tripwire
 go 1.21.0
 
 require (
-	github.com/failsafe-go/failsafe-go v0.8.2
+	github.com/failsafe-go/failsafe-go v0.9.0
 	github.com/platinummonkey/go-concurrency-limits v0.8.1-0.20241127030159-8fa4836672d5
 	github.com/prometheus/client_golang v1.20.2
 	github.com/stretchr/testify v1.10.0
@@ -14,7 +14,7 @@ require (
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/bits-and-blooms/bitset v1.20.0 // indirect
+	github.com/bits-and-blooms/bitset v1.24.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/influxdata/tdigest v0.0.1 // indirect
