@@ -2,7 +2,7 @@
 
 client:
   prioritize: true
-#  share_strategies: true # Use a single adaptive limiter across both workloads
+  share_strategies: true # Use a single adaptive limiter across both workloads
 
   workloads:
     - name: writes
@@ -34,4 +34,4 @@ strategies:
           baseline_window_age: 60
           correlation_window_size: 50
           initial_rejection_factor: 2
-          max_rejection_factor: 4
+          max_rejection_factor: 6
